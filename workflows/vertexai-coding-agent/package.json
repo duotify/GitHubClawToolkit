@@ -1,0 +1,12 @@
+{
+  "name": "@githubclaw/vertexai-coding-agent",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./src/run-vertex-coding-agent.js --target=node --format=esm --outfile ./vertex-coding-agent.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^1.45.0"
+  }
+}

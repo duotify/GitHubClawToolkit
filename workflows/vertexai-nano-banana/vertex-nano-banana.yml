@@ -1,0 +1,343 @@
+name: "VertexAI 處理 Nano Banana 工作"
+
+"on":
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "GitHub issue number to process"
+        required: true
+        type: string
+      progress_comment_id:
+        description: "Existing issue comment ID to reuse for progress updates"
+        required: false
+        type: string
+  repository_dispatch:
+    types: [coding-agent]
+
+run-name: "🍌 Run Issue #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+
+concurrency:
+  group: "coding-agent-${{ github.repository }}-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  PROGRESS_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.progress_comment_id || inputs.progress_comment_id }}"
+  BRAIN_META: '<!-- githubclaw-brain-result: {"source":"githubclaw-worker-brain"} -->'
+  COMMENT_TOKEN: "${{ secrets.GH_ISSUES_TOKEN || github.token }}"
+  PUSH_TOKEN: "${{ secrets.GH_ISSUES_TOKEN || github.token }}"
+  AUTOMATION_GIT_USER_NAME: "${{ vars['AUTOMATION_GIT_USER_NAME'] || 'github-actions[bot]' }}"
+  AUTOMATION_GIT_USER_EMAIL: "${{ vars['AUTOMATION_GIT_USER_EMAIL'] || 'github-actions[bot]@users.noreply.github.com' }}"
+  CLOUD_CONSOLE_API_KEY: "${{ secrets.CLOUD_CONSOLE_API_KEY }}"
+  VERTEX_NANO_BANANA_MODEL: "${{ vars.VERTEX_NANO_BANANA_MODEL || 'google/gemini-3.1-flash-image-preview' }}"
+  VERTEX_NANO_BANANA_RUNTIME_SCRIPT: ".github/scripts/vertex-nano-banana.mjs"
+
+jobs:
+  run-agent:
+    name: 執行 Vertex Nano Banana Agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Validate payload
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ISSUE_NUMBER}" || "${ISSUE_NUMBER}" == "0" ]]; then
+            echo "::error::Missing or invalid issue_number"
+            exit 1
+          fi
+
+          if [[ -z "${COMMENT_TOKEN}" ]]; then
+            echo "::error::Missing GH_ISSUES_TOKEN or github.token"
+            exit 1
+          fi
+
+          if [[ -z "${CLOUD_CONSOLE_API_KEY}" ]]; then
+            echo "::error::Missing CLOUD_CONSOLE_API_KEY secret for Vertex Express mode"
+            exit 1
+          fi
+
+          if [[ -n "${PROGRESS_COMMENT_ID}" ]] && ! [[ "${PROGRESS_COMMENT_ID}" =~ ^[0-9]+$ ]]; then
+            echo "::error::progress_comment_id must be a numeric comment id when provided"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: "${{ secrets.GH_ISSUES_TOKEN || github.token }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Traditional Chinese fonts
+        uses: doggy8088/install-noto-sans-tc-fonts-action@v1
+
+      - name: Resolve progress comment
+        id: progress
+        shell: bash
+        env:
+          GH_TOKEN: ${{ env.COMMENT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${PROGRESS_COMMENT_ID}" ]]; then
+            echo "comment_id=${PROGRESS_COMMENT_ID}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          comment_body="$(printf '🍌 任務已承接，正在準備執行環境...\n\n- run_id: `%s`\n\n%s' \
+            "${GITHUB_RUN_ID}" "${BRAIN_META}")"
+
+          response="$(bash .github/scripts/gh-api-with-retry.sh \
+            --method POST \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments" \
+            -f body="${comment_body}")"
+
+          comment_id="$(printf '%s' "${response}" | jq -r '.id')"
+          if [[ -z "${comment_id}" || "${comment_id}" == "null" ]]; then
+            echo "::error::Failed to create progress comment"
+            exit 1
+          fi
+
+          echo "comment_id=${comment_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare issue workspace
+        id: workspace
+        shell: bash
+        env:
+          GH_TOKEN: ${{ env.PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          branch_name="issue-${ISSUE_NUMBER}"
+          issue_dir="workspaces/issue-${ISSUE_NUMBER}"
+          prompt_file="${issue_dir}/issue.md"
+          image_dir="${issue_dir}/files"
+
+          git config user.name "${AUTOMATION_GIT_USER_NAME}"
+          git config user.email "${AUTOMATION_GIT_USER_EMAIL}"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git fetch --no-tags origin main "${branch_name}" || true
+
+          if git show-ref --verify --quiet "refs/remotes/origin/${branch_name}"; then
+            git checkout -B "${branch_name}" "origin/${branch_name}"
+            git rebase origin/main || {
+              git rebase --abort || true
+              echo "::warning::Unable to rebase ${branch_name} onto origin/main; continuing with existing branch tip."
+            }
+          else
+            git checkout -B "${branch_name}" origin/main
+          fi
+
+          {
+            echo "branch_name=${branch_name}"
+            echo "issue_dir=${issue_dir}"
+            echo "prompt_file=${prompt_file}"
+            echo "image_dir=${image_dir}"
+            echo "result_file=${issue_dir}/result.txt"
+            echo "log_file=${issue_dir}/vertex-nano-banana-log.json"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update progress comment to running
+        shell: bash
+        env:
+          GH_TOKEN: ${{ env.COMMENT_TOKEN }}
+          COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+        run: |
+          set -euo pipefail
+          body_file="${RUNNER_TEMP}/comment-body.json"
+          running_body="$(printf '🍌 正在產圖中...\n\n%s' "${BRAIN_META}")"
+
+          node .github/scripts/build-comment-body-json.mjs \
+            --body "${running_body}" > "${body_file}"
+
+          bash .github/scripts/gh-api-with-retry.sh \
+            --method PATCH \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
+            --input "${body_file}" >/dev/null
+
+      - name: Run nano banana agent
+        id: run_agent
+        shell: bash
+        env:
+          ISSUE_DIR: ${{ steps.workspace.outputs.issue_dir }}
+          IMAGE_DIR: ${{ steps.workspace.outputs.image_dir }}
+          RESULT_FILE: ${{ steps.workspace.outputs.result_file }}
+          LOG_FILE: ${{ steps.workspace.outputs.log_file }}
+          REPO_ROOT: ${{ github.workspace }}
+          BRAIN_META: ${{ env.BRAIN_META }}
+          CLOUD_CONSOLE_API_KEY: ${{ env.CLOUD_CONSOLE_API_KEY }}
+          VERTEX_NANO_BANANA_MODEL: ${{ env.VERTEX_NANO_BANANA_MODEL }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$(dirname "${RESULT_FILE}")"
+          mkdir -p "${IMAGE_DIR}"
+          : > "${RESULT_FILE}"
+          : > "${LOG_FILE}"
+
+          node "${VERTEX_NANO_BANANA_RUNTIME_SCRIPT}" \
+            --repo-root "${REPO_ROOT}" \
+            --issue-dir "${ISSUE_DIR}" \
+            --image-dir "${IMAGE_DIR}" \
+            --result-file "${RESULT_FILE}" \
+            --log-file "${LOG_FILE}" \
+            --model "${VERTEX_NANO_BANANA_MODEL}"
+
+      - name: Commit and push artifacts
+        if: always() && steps.workspace.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ env.PUSH_TOKEN }}
+          BRANCH_NAME: ${{ steps.workspace.outputs.branch_name }}
+          ISSUE_DIR: ${{ steps.workspace.outputs.issue_dir }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ISSUE_DIR}" || -z "${BRANCH_NAME}" ]]; then
+            echo "No workspace dir set; skipping artifact commit."
+            exit 0
+          fi
+
+          git add "${ISSUE_DIR}"
+
+          if git diff --cached --quiet -- "${ISSUE_DIR}"; then
+            echo "No artifact changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: record nano banana output for issue #${ISSUE_NUMBER}"
+
+          AGENT_COMMIT=$(git rev-parse HEAD)
+          AGENT_COMMIT_MESSAGE=$(git log -1 --format=%s "${AGENT_COMMIT}")
+
+          push_succeeded=false
+          for attempt in 1 2 3; do
+            if git rev-parse -q --verify CHERRY_PICK_HEAD >/dev/null; then
+              echo "::warning::Found unfinished cherry-pick state from previous attempt; aborting it before retry."
+              git cherry-pick --abort || true
+            fi
+
+            git fetch origin "${BRANCH_NAME}" || true
+
+            if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH_NAME}"; then
+              git reset --hard "origin/${BRANCH_NAME}"
+
+              if git cherry-pick --no-commit "${AGENT_COMMIT}"; then
+                if git diff --cached --quiet; then
+                  echo "No-op cherry-pick: remote branch already contains equivalent artifact content."
+                  push_succeeded=true
+                  break
+                fi
+
+                git commit -m "${AGENT_COMMIT_MESSAGE}"
+                if git push origin "HEAD:${BRANCH_NAME}"; then
+                  push_succeeded=true
+                  break
+                fi
+              else
+                if git ls-files -u | grep -q .; then
+                  echo "::warning::Cherry-pick conflict detected; aborting and retrying without rewriting remote history."
+                  git cherry-pick --abort || true
+                elif git diff --cached --quiet && git diff --quiet; then
+                  echo "No-op cherry-pick after replay attempt: equivalent artifact already exists on remote branch."
+                  git cherry-pick --abort || true
+                  push_succeeded=true
+                  break
+                else
+                  echo "::warning::Cherry-pick failed in unexpected state; aborting and retrying."
+                  git cherry-pick --abort || true
+                fi
+              fi
+            else
+              if git push --set-upstream origin "HEAD:${BRANCH_NAME}"; then
+                push_succeeded=true
+                break
+              fi
+            fi
+
+            echo "::warning::Push attempt ${attempt}/3 failed; retrying in $((attempt * 3))s..."
+            sleep $((attempt * 3))
+          done
+
+          if [ "${push_succeeded}" != "true" ]; then
+            echo "::error::Failed to push after 3 attempts."
+            exit 1
+          fi
+
+      - name: Rewrite image URLs in result
+        if: success() && steps.workspace.outcome == 'success'
+        shell: bash
+        env:
+          RESULT_FILE: ${{ steps.workspace.outputs.result_file }}
+          BRANCH_NAME: ${{ steps.workspace.outputs.branch_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ -s "${RESULT_FILE}" ]]; then
+            node .github/scripts/rewrite-image-urls.mjs \
+              "${RESULT_FILE}" \
+              "${GITHUB_REPOSITORY}" \
+              "${BRANCH_NAME}"
+          fi
+
+      - name: Publish final result comment
+        if: success() && steps.progress.outcome == 'success' && steps.workspace.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ env.COMMENT_TOKEN }}
+          COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          RESULT_FILE: ${{ steps.workspace.outputs.result_file }}
+        run: |
+          set -euo pipefail
+          sleep 5
+          body_file="${RUNNER_TEMP}/comment-body-final.json"
+
+          node .github/scripts/build-comment-body-json.mjs \
+            --from-file "${RESULT_FILE}" > "${body_file}"
+
+          bash .github/scripts/gh-api-with-retry.sh \
+            --method PATCH \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
+            --input "${body_file}" >/dev/null
+
+      - name: Publish failure comment
+        if: failure() && steps.progress.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ env.COMMENT_TOKEN }}
+          COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          RESULT_FILE: ${{ steps.workspace.outputs.result_file }}
+        run: |
+          set -euo pipefail
+
+          if [[ -f "${RESULT_FILE}" && -s "${RESULT_FILE}" ]]; then
+            summary="$(cat "${RESULT_FILE}")"
+          else
+            summary="$(printf '❌ 執行失敗（run_id=%s）。請查看 workflow 執行記錄：%s/%s/actions/runs/%s。\n\n%s' \
+              "${GITHUB_RUN_ID}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_RUN_ID}" "${BRAIN_META}")"
+          fi
+
+          body_file="${RUNNER_TEMP}/comment-body-failure.json"
+          SUMMARY="${summary}" node .github/scripts/build-comment-body-json.mjs \
+            --from-env SUMMARY > "${body_file}"
+
+          bash .github/scripts/gh-api-with-retry.sh \
+            --method PATCH \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
+            --input "${body_file}" >/dev/null
