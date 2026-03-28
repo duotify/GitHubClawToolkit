@@ -9,12 +9,8 @@ inputs:
     description: 已存在的進度留言 ID；若提供則直接沿用，不重新建立
     required: false
     default: ''
-  message:
-    description: 留言的純文字內容（允許換行）。
-    required: false
-    default: ''
   message_file:
-    description: 留言內容的檔案路徑；當 message 未提供時使用（允許換行）。
+    description: 留言內容的檔案路徑；若檔案不存在則改用預設失敗訊息。
     required: false
     default: ''
   brain_meta:
@@ -31,7 +27,6 @@ runs:
       env:
         ISSUE_NUMBER: ${{ inputs.issue_number }}
         COMMENT_ID: ${{ inputs.comment_id }}
-        MESSAGE: ${{ inputs.message }}
         MESSAGE_FILE: ${{ inputs.message_file }}
         GH_TOKEN: ${{ github.token }}
         REPOSITORY: ${{ github.repository }}
@@ -39,13 +34,10 @@ runs:
       run: |
         set -euo pipefail
 
-        # 留言內容共有三種來源：
-        # 1. 有 message：直接使用 message
-        # 2. 無 message，但有 message_file：讀取檔案內容
-        # 3. 兩者皆無：改用執行失敗 fallback 訊息
-        if [[ -n "${MESSAGE}" ]]; then
-          message="${MESSAGE}"
-        elif [[ -n "${MESSAGE_FILE}" ]]; then
+        # 留言內容共有兩種來源：
+        # 1. 有存在的 message_file：讀取檔案內容
+        # 2. 其他情況：改用執行失敗 fallback 訊息
+        if [[ -n "${MESSAGE_FILE}" && -f "${MESSAGE_FILE}" ]]; then
           message="$(cat "${MESSAGE_FILE}")"
         else
           message="$(printf '❌ 執行失敗。請查看 Workflow 執行記錄。')"
@@ -67,7 +59,7 @@ runs:
           if response="$(gh api \
             --method POST \
             -H 'Accept: application/vnd.github+json' \
-            "/repos/${REPOSITORY}/issues/${ISSUE_NUMBER}/comments" \
+            "/repos/${REPOSITORY}/issues/${ISSUE_NUMBER}/comments/${COMMENT_ID}" \
             --input "${message_file}")"; then
             break
           else
