@@ -1,5 +1,5 @@
 {
-  "name": "audio-transcriber-skill",
+  "name": "gemini-audio-transcriber-skill",
   "version": "1.0.0",
   "description": "音訊轉繁中逐字稿工具 — 使用 Gemini Interactions API 分析音訊並產生繁中逐字稿",
   "type": "module",

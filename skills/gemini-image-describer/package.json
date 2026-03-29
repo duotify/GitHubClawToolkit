@@ -1,5 +1,5 @@
 {
-  "name": "image-describer-skill",
+  "name": "gemini-image-describer-skill",
   "version": "1.0.0",
   "description": "圖片內容描述工具 — 使用 Gemini Interactions API 分析圖片並產生繁中描述",
   "type": "module",

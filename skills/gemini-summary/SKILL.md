@@ -1,5 +1,5 @@
 ---
-name: summary
+name: gemini-summary
 description: Use this skill when a user provides a web page URL, PDF file, video, or audio file and wants a Traditional Chinese summary. Prefer this skill for requests like "summarize this URL", "summarize this PDF", "summarize this video", "summarize this audio", "幫我摘要這篇", "這份報告重點是什麼", "幫我總結這段影片", "幫我摘要這段錄音", or when analyzing articles, documents, presentations, YouTube videos, audio recordings, or any content that needs a zh-TW summary. Automatically detects input type (web page, PDF, video, audio) — no manual type selection needed.
 required_env:
   - GEMINI_API_KEY
@@ -39,32 +39,32 @@ required_env:
 > ⚠️ **路徑安全**：skill 腳本位於 **repo 根目錄**的 `.agents/skills/` 下。若 cwd 不在 repo root，請先執行 `git rev-parse --show-toplevel` 取得絕對路徑，再 `cd` 到該路徑後執行。**禁止**在指令中使用 `$(...)` 語法（會被 Copilot CLI 安全過濾器擋下）。
 
 ```sh
-node .agents/skills/summary/scripts/summarize.js <input>
+node .agents/skills/gemini-summary/scripts/summarize.js <input>
 ```
 
 ### 範例
 
 ```sh
 # 網頁摘要
-node .agents/skills/summary/scripts/summarize.js "https://example.com/posts/agentic-workflows"
+node .agents/skills/gemini-summary/scripts/summarize.js "https://example.com/posts/agentic-workflows"
 
 # PDF 摘要（本地檔案）
-node .agents/skills/summary/scripts/summarize.js "./reports/quarterly.pdf"
+node .agents/skills/gemini-summary/scripts/summarize.js "./reports/quarterly.pdf"
 
 # PDF 摘要（遠端 URL）
-node .agents/skills/summary/scripts/summarize.js "https://example.com/report.pdf"
+node .agents/skills/gemini-summary/scripts/summarize.js "https://example.com/report.pdf"
 
 # 影片摘要（YouTube）
-node .agents/skills/summary/scripts/summarize.js "https://youtu.be/abc123"
+node .agents/skills/gemini-summary/scripts/summarize.js "https://youtu.be/abc123"
 
 # 影片摘要（本地檔案）
-node .agents/skills/summary/scripts/summarize.js "./clips/demo.mp4"
+node .agents/skills/gemini-summary/scripts/summarize.js "./clips/demo.mp4"
 
 # 音訊摘要（本地檔案）
-node .agents/skills/summary/scripts/summarize.js "./recordings/meeting.mp3"
+node .agents/skills/gemini-summary/scripts/summarize.js "./recordings/meeting.mp3"
 
 # 音訊摘要（遠端 URL）
-node .agents/skills/summary/scripts/summarize.js "https://example.com/podcast.mp3"
+node .agents/skills/gemini-summary/scripts/summarize.js "https://example.com/podcast.mp3"
 ```
 
 ### 手動指定類型
@@ -72,8 +72,8 @@ node .agents/skills/summary/scripts/summarize.js "https://example.com/podcast.mp
 自動偵測通常足夠，但可用 `--type` 覆蓋：
 
 ```sh
-node .agents/skills/summary/scripts/summarize.js --type pdf "https://example.com/download?file=report"
-node .agents/skills/summary/scripts/summarize.js --type audio "https://example.com/download?file=recording"
+node .agents/skills/gemini-summary/scripts/summarize.js --type pdf "https://example.com/download?file=report"
+node .agents/skills/gemini-summary/scripts/summarize.js --type audio "https://example.com/download?file=recording"
 ```
 
 ### Dry Run
@@ -81,7 +81,7 @@ node .agents/skills/summary/scripts/summarize.js --type audio "https://example.c
 設定 `SUMMARY_DRY_RUN=1` 可在不呼叫 Gemini API 的情況下，預覽輸入偵測結果（JSON 格式）：
 
 ```sh
-SUMMARY_DRY_RUN=1 node .agents/skills/summary/scripts/summarize.js "https://youtu.be/abc123"
+SUMMARY_DRY_RUN=1 node .agents/skills/gemini-summary/scripts/summarize.js "https://youtu.be/abc123"
 ```
 
 ## 輸出格式
@@ -120,7 +120,7 @@ SUMMARY_DRY_RUN=1 node .agents/skills/summary/scripts/summarize.js "https://yout
 2. 確認環境中已設定 `GEMINI_API_KEY`。
 3. 執行指令：
    ```sh
-   node .agents/skills/summary/scripts/summarize.js "<input>"
+   node .agents/skills/gemini-summary/scripts/summarize.js "<input>"
    ```
 4. 腳本會自動偵測輸入類型並選擇適當的處理方式與模型。
 5. 結果以串流方式輸出到 stdout，進度與錯誤訊息輸出到 stderr。
@@ -165,7 +165,7 @@ SUMMARY_DRY_RUN=1 node .agents/skills/summary/scripts/summarize.js "https://yout
 `scripts/summarize.js` 是已提交的預建可執行產物；`src/summarize.js` 是可維護的原始碼。重建方式：
 
 ```sh
-cd .agents/skills/summary
+cd .agents/skills/gemini-summary
 bun install
 bun run build
 ```

@@ -1,5 +1,5 @@
 {
-  "name": "summary-skill",
+  "name": "gemini-summary-skill",
   "version": "1.0.0",
   "description": "統一摘要 skill — 自動偵測 URL/PDF/影片並產生繁體中文 Markdown 摘要",
   "type": "module",

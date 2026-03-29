@@ -1,5 +1,5 @@
 ---
-name: audio-transcriber
+name: gemini-audio-transcriber
 description: Use this skill when a user provides an audio file (local file or URL) and wants it transcribed into Traditional Chinese text. Prefer this skill for requests like "transcribe this audio", "convert speech to text", "轉錄這段錄音", "語音轉文字", or when converting meeting recordings, voice memos, or podcast clips to text. The output can be further processed by meeting-note-formatter for structured meeting notes.
 required_env:
   - GEMINI_API_KEY
@@ -21,7 +21,7 @@ required_env:
 直接執行預建腳本 — **不需要 `npm install` 或額外設定**：
 
 ```sh
-node .agents/skills/audio-transcriber/scripts/transcribe.js <audio-path-or-url>
+node .agents/skills/gemini-audio-transcriber/scripts/transcribe.js <audio-path-or-url>
 ```
 
 ### 範例
@@ -29,20 +29,20 @@ node .agents/skills/audio-transcriber/scripts/transcribe.js <audio-path-or-url>
 遠端 URL：
 
 ```sh
-GEMINI_API_KEY=your_api_key node .agents/skills/audio-transcriber/scripts/transcribe.js "https://example.com/audio/meeting.mp3"
+GEMINI_API_KEY=your_api_key node .agents/skills/gemini-audio-transcriber/scripts/transcribe.js "https://example.com/audio/meeting.mp3"
 ```
 
 本機檔案：
 
 ```sh
-GEMINI_API_KEY=your_api_key node .agents/skills/audio-transcriber/scripts/transcribe.js "./recordings/meeting.m4a"
+GEMINI_API_KEY=your_api_key node .agents/skills/gemini-audio-transcriber/scripts/transcribe.js "./recordings/meeting.m4a"
 ```
 
 搭配 meeting-note-formatter 使用：
 
 ```sh
 # 先轉錄音訊
-GEMINI_API_KEY=your_api_key node .agents/skills/audio-transcriber/scripts/transcribe.js "recording.mp3" > transcript.md
+GEMINI_API_KEY=your_api_key node .agents/skills/gemini-audio-transcriber/scripts/transcribe.js "recording.mp3" > transcript.md
 
 # 再用 meeting-note-formatter 整理成會議紀錄
 ```
@@ -52,7 +52,7 @@ GEMINI_API_KEY=your_api_key node .agents/skills/audio-transcriber/scripts/transc
 設定 `AUDIO_TRANSCRIBER_DRY_RUN=1` 可在不呼叫 Gemini API 的情況下，預覽輸入解析結果：
 
 ```sh
-AUDIO_TRANSCRIBER_DRY_RUN=1 node .agents/skills/audio-transcriber/scripts/transcribe.js "https://example.com/test.mp3"
+AUDIO_TRANSCRIBER_DRY_RUN=1 node .agents/skills/gemini-audio-transcriber/scripts/transcribe.js "https://example.com/test.mp3"
 ```
 
 輸出範例：
@@ -81,7 +81,7 @@ AUDIO_TRANSCRIBER_DRY_RUN=1 node .agents/skills/audio-transcriber/scripts/transc
 2. 確認環境中已設定 `GEMINI_API_KEY`。
 3. 執行轉錄腳本：
    ```sh
-   node .agents/skills/audio-transcriber/scripts/transcribe.js "<audio-path-or-url>"
+   node .agents/skills/gemini-audio-transcriber/scripts/transcribe.js "<audio-path-or-url>"
    ```
 4. 如果輸入是本機檔案路徑或 `file://` URL，腳本會自動轉換為 Base64 data URI。
 5. 將生成的逐字稿呈現給使用者。
@@ -108,7 +108,7 @@ AUDIO_TRANSCRIBER_DRY_RUN=1 node .agents/skills/audio-transcriber/scripts/transc
 如需修改腳本，編輯 `src/transcribe.js` 後重新建置：
 
 ```sh
-cd .agents/skills/audio-transcriber
+cd .agents/skills/gemini-audio-transcriber
 bun install
 bun build src/transcribe.js --outfile scripts/transcribe.js --target node --minify
 ```

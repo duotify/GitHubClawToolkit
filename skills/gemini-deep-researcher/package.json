@@ -1,5 +1,5 @@
 {
-  "name": "deep-researcher-skill",
+  "name": "gemini-deep-researcher-skill",
   "version": "1.0.0",
   "description": "深度研究報告工具 — 使用 Gemini Deep Research agent 產生含引用來源的繁中研究報告",
   "type": "module",

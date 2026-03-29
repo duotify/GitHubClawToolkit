@@ -1,5 +1,5 @@
 ---
-name: image-describer
+name: gemini-image-describer
 description: Use this skill when a user provides an image (local file or URL) and wants a detailed Traditional Chinese description of the image content. Prefer this skill for requests like "describe this image", "what's in this picture", "OCR this screenshot", "辨識這張圖", "描述這張照片", or when extracting text from screenshots or photos.
 required_env:
   - GEMINI_API_KEY
@@ -20,21 +20,21 @@ required_env:
 直接執行預建置腳本 — **不需要 `npm install` 或其他額外設定**：
 
 ```sh
-node .agents/skills/image-describer/scripts/describe.js <image-path-or-url>
+node .agents/skills/gemini-image-describer/scripts/describe.js <image-path-or-url>
 ```
 
 ### 範例
 
 ```sh
-GEMINI_API_KEY=your_api_key node .agents/skills/image-describer/scripts/describe.js "https://example.com/photo.jpg"
+GEMINI_API_KEY=your_api_key node .agents/skills/gemini-image-describer/scripts/describe.js "https://example.com/photo.jpg"
 ```
 
 ```sh
-GEMINI_API_KEY=your_api_key node .agents/skills/image-describer/scripts/describe.js "./photos/screenshot.png"
+GEMINI_API_KEY=your_api_key node .agents/skills/gemini-image-describer/scripts/describe.js "./photos/screenshot.png"
 ```
 
 ```sh
-GEMINI_API_KEY=your_api_key node .agents/skills/image-describer/scripts/describe.js "data:image/png;base64,iVBOR..."
+GEMINI_API_KEY=your_api_key node .agents/skills/gemini-image-describer/scripts/describe.js "data:image/png;base64,iVBOR..."
 ```
 
 ## Dry Run
@@ -42,7 +42,7 @@ GEMINI_API_KEY=your_api_key node .agents/skills/image-describer/scripts/describe
 設定 `IMAGE_DESCRIBER_DRY_RUN=1` 可在不呼叫 Gemini API 的情況下，預覽解析後的輸入 metadata：
 
 ```sh
-IMAGE_DESCRIBER_DRY_RUN=1 node .agents/skills/image-describer/scripts/describe.js "https://example.com/photo.jpg"
+IMAGE_DESCRIBER_DRY_RUN=1 node .agents/skills/gemini-image-describer/scripts/describe.js "https://example.com/photo.jpg"
 ```
 
 ## 輸出格式
@@ -61,7 +61,7 @@ IMAGE_DESCRIBER_DRY_RUN=1 node .agents/skills/image-describer/scripts/describe.j
 2. 確認環境中已設定 `GEMINI_API_KEY`。
 3. 執行描述腳本：
    ```sh
-   node .agents/skills/image-describer/scripts/describe.js "<image-path-or-url>"
+   node .agents/skills/gemini-image-describer/scripts/describe.js "<image-path-or-url>"
    ```
 4. 若輸入為本地檔案路徑或 `file://` URL，腳本會自動轉換為 Base64 data URI。
 5. 將產生的描述結果呈現給使用者。
@@ -96,7 +96,7 @@ IMAGE_DESCRIBER_DRY_RUN=1 node .agents/skills/image-describer/scripts/describe.j
 若需修改腳本，編輯 `src/describe.js` 後重新建置：
 
 ```sh
-cd .agents/skills/image-describer
+cd .agents/skills/gemini-image-describer
 bun install
 bun build src/describe.js --outfile scripts/describe.js --target node --minify
 ```

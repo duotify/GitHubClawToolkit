@@ -1,5 +1,5 @@
 ---
-name: deep-researcher
+name: gemini-deep-researcher
 description: Use this skill when a user wants a comprehensive research report on any topic with cited sources. Prefer this skill for requests like "research this topic", "give me a deep analysis of", "幫我研究", "深度分析", or when the user needs a well-sourced report for decision-making, presentations, or learning. This skill uses Gemini's Deep Research agent and takes several minutes to complete.
 required_env:
   - GEMINI_API_KEY
@@ -20,20 +20,20 @@ required_env:
 ### 命令列引數
 
 ```bash
-node .agents/skills/deep-researcher/scripts/research.js "AI 晶片市場趨勢"
+node .agents/skills/gemini-deep-researcher/scripts/research.js "AI 晶片市場趨勢"
 ```
 
 ### 管線輸入
 
 ```bash
-echo "量子運算對密碼學的影響" | node .agents/skills/deep-researcher/scripts/research.js
+echo "量子運算對密碼學的影響" | node .agents/skills/gemini-deep-researcher/scripts/research.js
 ```
 
 ### 在其他腳本中使用
 
 ```bash
 TOPIC="台灣半導體產業供應鏈分析"
-node .agents/skills/deep-researcher/scripts/research.js "$TOPIC" > report.md
+node .agents/skills/gemini-deep-researcher/scripts/research.js "$TOPIC" > report.md
 ```
 
 ## Dry Run
@@ -41,7 +41,7 @@ node .agents/skills/deep-researcher/scripts/research.js "$TOPIC" > report.md
 設定 `DEEP_RESEARCHER_DRY_RUN=1` 可在不呼叫 API 的情況下預覽將送出的請求：
 
 ```bash
-DEEP_RESEARCHER_DRY_RUN=1 node .agents/skills/deep-researcher/scripts/research.js "測試主題"
+DEEP_RESEARCHER_DRY_RUN=1 node .agents/skills/gemini-deep-researcher/scripts/research.js "測試主題"
 ```
 
 輸出為 JSON，包含 `agent`、`background`、`prompt`、`topic` 欄位。
@@ -64,7 +64,7 @@ stderr 輸出進度訊息（啟動、輪詢進度、完成）。
 ⚠️ skill 腳本位於 **repo 根目錄**。若 cwd 不在 repo root，先獨立執行 `git rev-parse --show-toplevel` 取得路徑，再 `cd` 到該路徑後執行。禁止使用 `$(...)` 語法。
 
 1. 確認使用者提供了研究主題（文字）。
-2. 執行 `node .agents/skills/deep-researcher/scripts/research.js "<主題>"` 並將 stdout 導向檔案或直接呈現。
+2. 執行 `node .agents/skills/gemini-deep-researcher/scripts/research.js "<主題>"` 並將 stdout 導向檔案或直接呈現。
 3. **注意：此技能使用 Gemini Deep Research agent，通常需要 2–8 分鐘才能完成。** 請提前告知使用者需要等待。
 4. 進度訊息會輸出到 stderr，可據此回報等待狀態。
 5. 完成後，stdout 的內容即為完整研究報告（Markdown 格式）。
