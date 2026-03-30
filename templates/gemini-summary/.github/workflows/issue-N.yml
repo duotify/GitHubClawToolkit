@@ -1,0 +1,450 @@
+# 內容摘要 workflow。
+# 使用 Gemini 模型（內嵌 Node.js 腳本），從根目錄的 issue.md 讀取目標 URL 或檔案路徑，
+# 生成 Markdown 摘要並 commit 到 issue branch，最後回寫 issue comment。
+#
+# 認證模式：僅支援 Gemini API Key（GEMINI_API_KEY secret）。
+name: '執行小龍蝦任務 #N'
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'GitHub issue number to process'
+        required: true
+        type: string
+      comment_id:
+        description: 'Existing issue comment ID to reuse for progress updates'
+        required: false
+        type: string
+      event_source:
+        description: 'Who is triggering this workflow: cron or issue'
+        required: false
+        type: choice
+        default: ''
+        options:
+          - ''
+          - cron
+          - issue
+      event_data:
+        description: 'Additional data related to the event that triggered this workflow'
+        required: false
+        type: string
+        default: ''
+  repository_dispatch:
+    types: [summarize-content]
+
+run-name: "📝 Summarize Content Issue #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+
+concurrency:
+  group: "summarize-content-${{ github.repository }}-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
+  BRAIN_META: '<!-- githubclaw-brain-result: {"source":"githubclaw-worker-brain"} -->'
+  AUTOMATION_GIT_USER_NAME: "${{ vars['AUTOMATION_GIT_USER_NAME'] || 'github-actions[bot]' }}"
+  AUTOMATION_GIT_USER_EMAIL: "${{ vars['AUTOMATION_GIT_USER_EMAIL'] || 'github-actions[bot]@users.noreply.github.com' }}"
+  GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+
+jobs:
+  run-summarize-content:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 把目標 repo 檢出到 runner，切換到對應 issue branch。
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+          fetch-depth: 1
+          token: "${{ github.token }}"
+
+      # 先把 Node.js 環境準備好。
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # 安裝 Bun
+      - uses: oven-sh/setup-bun@v2
+
+      # 安裝相關套件
+      - run: bun install --no-fund --no-audit @google/genai @mozilla/readability linkedom
+
+      - name: 狀態更新處理
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
+        shell: bash
+        run: |
+          echo "StatusUpdate event detected, performing status update..."
+
+      # ── 執行內容摘要任務 ──────────────────────────────────────────────────
+      # 從 issue.md 讀取目標 URL 或檔案路徑，使用 GoogleGenAI SDK 生成摘要並儲存到 artifacts 目錄。
+      - name: 執行任務
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        id: summarize
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
+          ISSUE_DIR: "artifacts/${{ env.COMMENT_ID }}"
+          PROMPT_FILE: "./issue.md"
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "${PROMPT_FILE}" ]]; then
+            echo "::error::${PROMPT_FILE} 不存在。請確認根目錄已正確建立並包含 issue.md。"
+            exit 1
+          fi
+
+          # 從 issue.md 全文中找第一個 URL；若無 URL 則取第一個非 # 開頭的非空行（檔案路徑情境）
+          INPUT_TARGET="$(grep -m1 -oE 'https?://[^[:space:]]+' "${PROMPT_FILE}" | head -1)"
+          if [[ -z "${INPUT_TARGET}" ]]; then
+            INPUT_TARGET="$(grep -m1 -v '^[[:space:]]*#' "${PROMPT_FILE}" | grep -m1 '[^[:space:]]' | tr -d '[:space:]')"
+          fi
+          if [[ -z "${INPUT_TARGET}" ]]; then
+            echo "::error::${PROMPT_FILE} 中找不到有效的 URL 或檔案路徑"
+            exit 1
+          fi
+
+          echo "::notice::摘要目標：${INPUT_TARGET}"
+
+          # 將 GoogleGenAI SDK 摘要腳本寫入暫存檔後執行
+          cat > summarize-inline.mjs << 'EOF'
+          import { GoogleGenAI } from "@google/genai";
+          import _Readability from "@mozilla/readability";
+          const Readability = _Readability.default ?? _Readability;
+          import { parseHTML } from "linkedom";
+          import { readFile } from "node:fs/promises";
+          import path from "node:path";
+          import { fileURLToPath } from "node:url";
+
+          const MODELS = {
+            url: "gemini-3-flash-preview",
+            pdf: "gemini-3-flash-preview",
+            video: "gemini-3-flash-preview",
+            audio: "gemini-3-flash-preview",
+          };
+
+          const MAX_CONTENT_LENGTH = 120_000;
+          const MIN_CONTENT_LENGTH = 200;
+          const FETCH_TIMEOUT_MS = 30_000;
+
+          const VIDEO_EXTENSIONS = new Set([".3gp",".avi",".m4v",".mkv",".mov",".mp4",".mpeg",".mpg",".ogv",".webm"]);
+          const VIDEO_MIME_TYPES = { ".3gp":"video/3gpp",".avi":"video/x-msvideo",".m4v":"video/x-m4v",".mkv":"video/x-matroska",".mov":"video/quicktime",".mp4":"video/mp4",".mpeg":"video/mpeg",".mpg":"video/mpeg",".ogv":"video/ogg",".webm":"video/webm" };
+          const YOUTUBE_HOSTS = new Set(["youtube.com","www.youtube.com","m.youtube.com","youtu.be","www.youtu.be"]);
+          const AUDIO_EXTENSIONS = new Set([".mp3",".wav",".aac",".ogg",".flac",".m4a",".aiff",".wma",".opus"]);
+          const AUDIO_MIME_TYPES = { ".mp3":"audio/mpeg",".wav":"audio/wav",".aac":"audio/aac",".ogg":"audio/ogg",".flac":"audio/flac",".m4a":"audio/mp4",".aiff":"audio/aiff",".wma":"audio/x-ms-wma",".opus":"audio/opus" };
+
+          function normalizeText(v) {
+            return String(v||"").replace(/\r\n/g,"\n").replace(/\u00a0/g," ").replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").replace(/[ \t]{2,}/g," ").trim();
+          }
+
+          function trimContent(v, max=MAX_CONTENT_LENGTH) {
+            const t = normalizeText(v);
+            return t.length <= max ? { text: t, truncated: false } : { text: t.slice(0, max)+"\n\n[內容因長度限制已截斷]", truncated: true };
+          }
+
+          async function fetchWithTimeout(url, opts={}) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(()=>ctrl.abort(), FETCH_TIMEOUT_MS);
+            try { return await fetch(url, {...opts, signal: ctrl.signal}); }
+            catch(e) { if(e?.name==="AbortError") throw new Error(`抓取逾時（${FETCH_TIMEOUT_MS/1000}秒）：${url}`); throw e; }
+            finally { clearTimeout(timer); }
+          }
+
+          function isRemoteUrl(v) {
+            try { const u=new URL(v); return u.protocol==="http:"||u.protocol==="https:"; } catch { return false; }
+          }
+
+          function detectInputType(input) {
+            if (!input) throw new Error("請提供輸入（URL 或檔案路徑）。");
+            if (input.startsWith("data:")) return "video";
+            if (isRemoteUrl(input)) {
+              try {
+                const u = new URL(input);
+                const p = u.pathname.toLowerCase();
+                if (p.endsWith(".pdf")) return "pdf";
+                const ext = path.extname(p);
+                if (VIDEO_EXTENSIONS.has(ext)) return "video";
+                if (AUDIO_EXTENSIONS.has(ext)) return "audio";
+                if (YOUTUBE_HOSTS.has(u.hostname)) return "video";
+                return "url";
+              } catch { return "url"; }
+            }
+            let local = input;
+            if (input.startsWith("file://")) local = fileURLToPath(input);
+            const ext = path.extname(local).toLowerCase();
+            if (ext===".pdf") return "pdf";
+            if (VIDEO_EXTENSIONS.has(ext)) return "video";
+            if (AUDIO_EXTENSIONS.has(ext)) return "audio";
+            throw new Error(`無法辨識輸入類型：${input}`);
+          }
+
+          function buildUrlPrompt({ url, title, siteName, byline, excerpt, content, truncated }) {
+            return `你是一個專門整理網頁內容的繁體中文編輯。請根據以下資料，輸出固定格式的 Markdown 摘要。
+
+          任務目標：
+          1. 深入理解文章內容，提供有深度與細節的摘要，避免過於簡略空泛。
+          2. 絕對不要虛構（Hallucination）原文沒有提及的資訊。
+          3. 全文必須使用繁體中文（zh-TW），並盡可能保留原文的專有名詞（可於括號內附上原文）。
+
+          格式規範（重要）：
+          - 標題請用粗體加 emoji，例如「**📝 內容摘要**」，不要使用 # 標題語法。
+          - 不要使用 Markdown 表格（| 語法），改用條列格式。
+          - 條列項目一律使用扁平結構（只用 - 開頭），不要使用編號子列表或巢狀縮排。
+          - 條列項目中若需標示重點名稱，直接寫在 - 後面即可，不要在條列內再使用粗體。
+
+          請依照以下結構輸出：
+
+          **📝 內容摘要**
+
+          **📌 來源**
+          - 類型：網頁
+          - 標題：
+          - 網站：
+          - 作者：
+          - 網址：
+
+          **💡 核心概述**
+
+          **🔍 重點條列**
+
+          **📊 關鍵數據與事實**
+          （如有關鍵數字、金額、日期、百分比等請條列；若無請省略此段）
+
+          **🎯 行動建議**
+          （若有建議或可執行步驟請條列；若無請寫「目前無明確行動建議」）
+
+          ---
+          - 標題：${title}
+          - 網站：${siteName||"未提供"}
+          - 作者：${byline||"未提供"}
+          - 摘要：${excerpt||"未提供"}
+          - 網址：${url}
+          - 內容是否截斷：${truncated?"是":"否"}
+
+          原文內容：
+          """
+          ${content}
+          """`;
+          }
+
+          function buildPdfPrompt() {
+            return `你是專業的文件分析助手。請仔細閱讀這份 PDF 文件的內容，並產出結構化、重點清晰的繁體中文摘要。
+
+          格式規範（重要）：
+          - 標題請用粗體加 emoji，不要使用 # 標題語法。
+          - 不要使用 Markdown 表格，改用條列格式。
+          - 條列項目一律使用扁平結構（只用 - 開頭）。
+
+          **📝 內容摘要**
+
+          **📌 來源**
+          - 類型：PDF 文件
+          - 檔名：
+
+          **💡 核心概述**
+
+          **🔍 重點條列**
+
+          **📊 關鍵數據與事實**（若無請省略）
+
+          **🎯 行動建議**（若無請寫「目前無明確行動建議」）`;
+          }
+
+          function buildVideoPrompt() {
+            return `你是一個專業的影片內容分析師。請仔細觀看這段影片的完整內容，並產出結構化、重點清晰的繁體中文摘要。
+
+          格式規範（重要）：
+          - 標題請用粗體加 emoji，不要使用 # 標題語法。
+          - 不要使用 Markdown 表格，改用條列格式。
+          - 條列項目一律使用扁平結構（只用 - 開頭）。
+
+          **📝 內容摘要**
+
+          **📌 來源**
+          - 類型：影片
+
+          **💡 核心概述**
+
+          **🔍 重點條列**
+
+          **🎯 行動建議**（若無請寫「目前無明確行動建議」）`;
+          }
+
+          function buildAudioPrompt() {
+            return `你是一個專業的音訊內容分析師。請仔細聆聽這段音訊的完整內容，並產出結構化、重點清晰的繁體中文摘要。
+
+          格式規範（重要）：
+          - 標題請用粗體加 emoji，不要使用 # 標題語法。
+          - 不要使用 Markdown 表格，改用條列格式。
+          - 條列項目一律使用扁平結構（只用 - 開頭）。
+
+          **📝 內容摘要**
+
+          **📌 來源**
+          - 類型：音訊
+
+          **💡 核心概述**
+
+          **🔍 重點條列**
+
+          **🎯 行動建議**（若無請寫「目前無明確行動建議」）`;
+          }
+
+          async function handleUrl(input, ai) {
+            const url = new URL(input).toString();
+            console.error(`正在抓取網址：${url}`);
+            const resp = await fetchWithTimeout(url, {
+              redirect: "follow",
+              headers: { "User-Agent": "GitHubClawDev/summary (+https://github.com/duotify/GitHubClawDev)", Accept: "text/html,application/xhtml+xml" },
+            });
+            if (!resp.ok) throw new Error(`抓取網址失敗：${url}（HTTP ${resp.status}）`);
+            const ct = resp.headers.get("content-type")||"";
+            if (ct.includes("application/pdf")) return handlePdf(url, ai);
+            const html = await resp.text();
+            console.error("正在抽取正文...");
+            const { document } = parseHTML(html);
+            const article = new Readability(document).parse();
+            const raw = article?.textContent || document.querySelector("body")?.textContent || "";
+            const { text, truncated } = trimContent(raw);
+            if (text.length < MIN_CONTENT_LENGTH) throw new Error(`無法從頁面抽出足夠正文：${url}`);
+            const prompt = buildUrlPrompt({ url, title: normalizeText(article?.title||"未命名頁面"), siteName: normalizeText(article?.siteName||"")||null, byline: normalizeText(article?.byline||"")||null, excerpt: normalizeText(article?.excerpt||"")||null, content: text, truncated });
+            const result = await ai.models.generateContent({ model: MODELS.url, contents: [{ role: "user", parts: [{ text: prompt }] }] });
+            return result.text;
+          }
+
+          async function handlePdf(input, ai) {
+            console.error(`正在處理 PDF：${input}`);
+            let buffer;
+            if (isRemoteUrl(input)) {
+              const resp = await fetchWithTimeout(input);
+              if (!resp.ok) throw new Error(`下載 PDF 失敗（HTTP ${resp.status}）：${input}`);
+              buffer = Buffer.from(await resp.arrayBuffer());
+            } else {
+              const local = input.startsWith("file://") ? fileURLToPath(input) : input;
+              buffer = await readFile(path.resolve(local));
+            }
+            const displayName = path.basename(input.startsWith("http") ? new URL(input).pathname : input) || "document.pdf";
+            console.error("正在上傳 PDF 至 Gemini Files API...");
+            const blob = new Blob([buffer], { type: "application/pdf" });
+            let uploaded = await ai.files.upload({ file: blob, config: { mimeType: "application/pdf", displayName } });
+            while (uploaded.state === "PROCESSING") {
+              await new Promise(r=>setTimeout(r,2000));
+              uploaded = await ai.files.get({ name: uploaded.name });
+            }
+            if (uploaded.state === "FAILED") throw new Error(`Gemini Files API 處理失敗：${uploaded.name}`);
+            console.error(`已上傳：${uploaded.name}`);
+            const result = await ai.models.generateContent({
+              model: MODELS.pdf,
+              contents: [{ role: "user", parts: [{ text: buildPdfPrompt() }, { fileData: { mimeType: "application/pdf", fileUri: uploaded.uri } }] }],
+            });
+            await ai.files.delete({ name: uploaded.name }).catch(()=>{});
+            return result.text;
+          }
+
+          async function handleVideoOrAudio(input, ai, type) {
+            console.error(`正在處理 ${type}：${input}`);
+            const prompt = type === "audio" ? buildAudioPrompt() : buildVideoPrompt();
+            const model = type === "audio" ? MODELS.audio : MODELS.video;
+            let mediaPart;
+            if (input.startsWith("data:")) {
+              // data URI — 直接拆出 base64 資料
+              const mimeType = input.match(/^data:([^;]+);base64,/)?.[1] || "video/mp4";
+              const data = input.split("base64,")[1];
+              mediaPart = { inlineData: { mimeType, data } };
+            } else if (isRemoteUrl(input)) {
+              // 遠端 URL（含 YouTube）— 使用 fileData，讓 Gemini 自行抓取
+              const ext = path.extname(new URL(input).pathname).toLowerCase();
+              const mimeType = type === "audio" ? (AUDIO_MIME_TYPES[ext]||"audio/mpeg") : (VIDEO_MIME_TYPES[ext]||"video/mp4");
+              mediaPart = { fileData: { mimeType, fileUri: input } };
+            } else {
+              // 本地檔案 — 讀取後以 base64 傳送
+              const local = input.startsWith("file://") ? fileURLToPath(input) : input;
+              const buf = await readFile(path.resolve(local));
+              const ext = path.extname(local).toLowerCase();
+              const mimeType = type === "audio" ? (AUDIO_MIME_TYPES[ext]||"audio/mpeg") : (VIDEO_MIME_TYPES[ext]||"video/mp4");
+              mediaPart = { inlineData: { mimeType, data: buf.toString("base64") } };
+            }
+            const result = await ai.models.generateContent({
+              model,
+              contents: [{ role: "user", parts: [{ text: prompt }, mediaPart] }],
+            });
+            return result.text;
+          }
+
+          // --- Main ---
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) throw new Error("缺少 GEMINI_API_KEY");
+
+          const input = process.env.INPUT_TARGET;
+          if (!input) throw new Error("缺少 INPUT_TARGET 環境變數");
+
+          const ai = new GoogleGenAI({ apiKey });
+          const type = detectInputType(input);
+          console.error(`偵測到輸入類型：${type}`);
+
+          let summary;
+          if (type === "url") summary = await handleUrl(input, ai);
+          else if (type === "pdf") summary = await handlePdf(input, ai);
+          else summary = await handleVideoOrAudio(input, ai, type);
+
+          process.stdout.write(summary + "\n");
+          EOF
+
+          # 使用 GoogleGenAI SDK 呼叫 Gemini 生成摘要
+          summary="$(INPUT_TARGET="${INPUT_TARGET}" bun run summarize-inline.mjs)"
+
+          if [[ -z "${summary// /}" ]]; then
+            echo "::error::summarize-inline.mjs 未回傳任何摘要內容"
+            exit 1
+          fi
+
+          mkdir -p "${ISSUE_DIR}"
+          result_file="${ISSUE_DIR}/result.md"
+
+          {
+            printf '📝 內容摘要完成！\n\n'
+            printf '%s\n\n' "${summary}"
+            printf '%s\n' "${BRAIN_META}"
+          } > "${result_file}"
+
+          echo "::notice::摘要完成，結果已寫入 ${result_file}"
+
+      # 推送結果到 issue branch。
+      - name: 推送結果
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "${AUTOMATION_GIT_USER_NAME}"
+          git config user.email "${AUTOMATION_GIT_USER_EMAIL}"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: add summary for issue #${{ env.ISSUE_NUMBER }}"
+          fi
+          git push origin "issue-${{ env.ISSUE_NUMBER }}" --force
+
+      - name: 任務失敗處理
+        if: failure() && steps.summarize.conclusion == 'failure'
+        uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.0
+        with:
+          output_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
+          result_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
+
+      - name: 執行結果回報
+        if: always()
+        uses: duotify/GitHubClawToolkit/actions/update-comment-action@v1.1.0
+        with:
+          issue_number: ${{ env.ISSUE_NUMBER }}
+          comment_id: ${{ env.COMMENT_ID }}
+          message_file: "artifacts/${{ env.COMMENT_ID }}/result.md"

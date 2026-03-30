@@ -1,0 +1,11 @@
+name: '執行小龍蝦任務 #N'
+
+on:
+  workflow_dispatch:
+
+jobs:
+  noop:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This will never run."

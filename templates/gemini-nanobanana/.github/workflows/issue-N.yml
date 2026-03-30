@@ -1,0 +1,216 @@
+# 圖片生成 workflow。
+# 使用 Gemini 模型，從根目錄的 issue.md 讀取提示詞，
+# 生成圖片並 commit 到 issue branch，最後回寫 issue comment。
+#
+# 認證模式：僅支援 Gemini API Key（GEMINI_API_KEY secret）。
+name: '執行小龍蝦任務 #N'
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'GitHub issue number to process'
+        required: true
+        type: string
+      comment_id:
+        description: 'Existing issue comment ID to reuse for progress updates'
+        required: false
+        type: string
+      event_source:
+        description: 'Who is triggering this workflow: cron or issue'
+        required: false
+        type: choice
+        default: ''
+        options:
+          - ''
+          - cron
+          - issue
+      event_data:
+        description: 'Additional data related to the event that triggered this workflow'
+        required: false
+        type: string
+        default: ''
+      model:
+        description: 'Gemini 圖片生成模型名稱'
+        required: false
+        default: 'imagen-4.0-generate-001'
+        type: string
+  repository_dispatch:
+    types: [create-image]
+
+run-name: "🎨 Create Image Issue #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+
+concurrency:
+  group: "create-image-${{ github.repository }}-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
+  MODEL: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.model || inputs.model || 'imagen-4.0-generate-001' }}"
+  BRAIN_META: '<!-- githubclaw-brain-result: {"source":"githubclaw-worker-brain"} -->'
+  AUTOMATION_GIT_USER_NAME: "${{ vars['AUTOMATION_GIT_USER_NAME'] || 'github-actions[bot]' }}"
+  AUTOMATION_GIT_USER_EMAIL: "${{ vars['AUTOMATION_GIT_USER_EMAIL'] || 'github-actions[bot]@users.noreply.github.com' }}"
+  GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+
+jobs:
+  run-create-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 把目標 repo 檢出到 runner，切換到對應 issue branch。
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+          fetch-depth: 1
+          token: "${{ github.token }}"
+
+      # 先把 Node.js 環境準備好。
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # 安裝 Bun
+      - uses: oven-sh/setup-bun@v2
+
+      # 安裝相關套件
+      - run: bun install --no-fund --no-audit @google/genai
+
+
+      - name: 狀態更新處理
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
+        shell: bash
+        run: |
+          echo "StatusUpdate event detected, performing status update..."
+
+      # ── 執行圖片生成任務 ──────────────────────────────────────────────────
+      # 從 issue.md 讀取提示詞，使用 GoogleGenAI SDK 呼叫 Imagen API 生成圖片並儲存到 artifacts 目錄。
+      - name: 執行任務
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        id: generate
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
+          NANOBANANA_MODEL: ${{ env.MODEL }}
+          ISSUE_DIR: "artifacts/${{ env.COMMENT_ID }}"
+          PROMPT_FILE: "./issue.md"
+          NAME_PREFIX: "image-${{ env.COMMENT_ID || env.ISSUE_NUMBER }}"
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "${PROMPT_FILE}" ]]; then
+            echo "::error::${PROMPT_FILE} 不存在。請確認根目錄已正確建立並包含 issue.md。"
+            exit 1
+          fi
+
+          PROMPT="$(cat "${PROMPT_FILE}")"
+          if [[ -z "${PROMPT// /}" ]]; then
+            echo "::error::${PROMPT_FILE} 內容為空，無法生成圖片"
+            exit 1
+          fi
+
+          mkdir -p "${ISSUE_DIR}"
+
+          # 將 GoogleGenAI SDK 圖片生成腳本寫入暫存檔後執行
+          cat > imagen-generate.mjs << 'EOF'
+          import { GoogleGenAI } from "@google/genai";
+          import { writeFileSync, mkdirSync } from "node:fs";
+          import { join } from "node:path";
+
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) throw new Error("缺少 GEMINI_API_KEY");
+
+          const model = process.env.NANOBANANA_MODEL || "imagen-4.0-generate-001";
+          const prompt = process.env.PROMPT;
+          const issueDir = process.env.ISSUE_DIR;
+          const namePrefix = process.env.NAME_PREFIX;
+
+          const ai = new GoogleGenAI({ apiKey });
+
+          const response = await ai.models.generateImages({
+            model,
+            prompt,
+            config: { numberOfImages: 1 },
+          });
+
+          mkdirSync(issueDir, { recursive: true });
+
+          let idx = 1;
+          for (const generatedImage of response.generatedImages) {
+            const imgBytes = generatedImage.image.imageBytes;
+            const buffer = Buffer.from(imgBytes, "base64");
+            const filePath = join(issueDir, `${namePrefix}-${idx}.png`);
+            writeFileSync(filePath, buffer);
+            console.log(`Saved: ${filePath}`);
+            idx++;
+          }
+          EOF
+
+          # 使用 GoogleGenAI SDK 呼叫 Imagen API 生成圖片，解析 "Saved: <path>" 輸出行取得儲存路徑
+          output="$(PROMPT="${PROMPT}" node imagen-generate.mjs)"
+          echo "${output}"
+
+          saved_files="$(echo "${output}" | grep '^Saved: ' | sed 's/^Saved: //' | paste -sd ',' -)"
+
+          if [[ -z "${saved_files}" ]]; then
+            echo "::error::未找到生成的圖片檔案路徑"
+            exit 1
+          fi
+
+          echo "saved_files=${saved_files}" >> "$GITHUB_OUTPUT"
+          echo "::notice::生成完成：${saved_files}"
+
+          # 寫入結果 Markdown，供後續 update-comment-action 使用
+          branch_name="issue-${{ env.ISSUE_NUMBER }}"
+          result_file="${ISSUE_DIR}/result.md"
+
+          {
+            printf '🎨 圖片生成完成！\n\n'
+            IFS=',' read -ra files <<< "${saved_files}"
+            for f in "${files[@]}"; do
+              filename="$(basename "${f}")"
+              url="https://github.com/${GITHUB_REPOSITORY}/blob/${branch_name}/${f}?raw=true"
+              printf '![%s](%s)\n\n' "${filename}" "${url}"
+            done
+            printf '%s\n' "${BRAIN_META}"
+          } > "${result_file}"
+
+      # 推送結果到 issue branch。
+      - name: 推送結果
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "${AUTOMATION_GIT_USER_NAME}"
+          git config user.email "${AUTOMATION_GIT_USER_EMAIL}"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: add generated images for issue #${{ env.ISSUE_NUMBER }}"
+          fi
+          git push origin "issue-${{ env.ISSUE_NUMBER }}" --force
+
+      - name: 任務失敗處理
+        if: failure() && steps.generate.conclusion == 'failure'
+        uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.0
+        with:
+          output_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
+          result_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
+
+      - name: 執行結果回報
+        if: always()
+        uses: duotify/GitHubClawToolkit/actions/update-comment-action@v1.1.0
+        with:
+          issue_number: ${{ env.ISSUE_NUMBER }}
+          comment_id: ${{ env.COMMENT_ID }}
+          message_file: "artifacts/${{ env.COMMENT_ID }}/result.md"

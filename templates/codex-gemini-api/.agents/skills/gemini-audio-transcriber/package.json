@@ -1,0 +1,16 @@
+{
+  "name": "gemini-audio-transcriber-skill",
+  "version": "1.0.0",
+  "description": "音訊轉繁中逐字稿工具 — 使用 Gemini Interactions API 分析音訊並產生繁中逐字稿",
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/transcribe.js --outfile scripts/transcribe.js --target node --minify",
+    "transcribe": "node scripts/transcribe.js"
+  },
+  "dependencies": {
+    "@google/genai": ">=1.33.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

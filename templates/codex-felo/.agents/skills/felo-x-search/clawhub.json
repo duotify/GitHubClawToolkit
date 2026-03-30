@@ -1,0 +1,12 @@
+{
+  "name": "Felo X Search",
+  "tagline": "Search X (Twitter) users, tweets, and replies via Felo API in Claude Code",
+  "description": "Felo X Search lets you look up X (Twitter) user profiles, search users and tweets, fetch user timelines, and get tweet replies directly from Claude Code. Uses the Felo Open API; requires a Felo API key. Supports user lookup, user search, user tweets, tweet search, and tweet replies with readable Markdown or raw JSON output.",
+  "category": "data",
+  "tags": ["twitter", "x", "search", "social", "felo", "api"],
+  "version": "1.0.1",
+  "license": "MIT",
+  "pricing": "free",
+  "support_url": "https://github.com/Felo-Inc/felo-skills/issues",
+  "homepage": "https://github.com/Felo-Inc/felo-skills"
+}

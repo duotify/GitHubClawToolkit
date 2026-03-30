@@ -1,0 +1,135 @@
+# 這個 workflow 會接手指定 issue，執行 Codex CLI，並把結果回寫到 issue comment 與 issue branch。
+# 注意：整個流程直接跑在 GitHub Actions runner 上，這份 YAML 本身沒有使用 Docker container。
+name: '執行小龍蝦任務 #N'
+
+# 支援兩種觸發方式：
+# 1. workflow_dispatch：從 GitHub Actions UI 手動填參數後執行
+# 2. repository_dispatch：由外部系統帶 payload 呼叫
+on:
+  # 讓人可以手動啟動這個 workflow，適合排錯或由上游系統代送參數。
+  workflow_dispatch:
+    inputs:
+      # 要處理的 GitHub issue 編號。
+      issue_number:
+        description: 'GitHub issue number to process'
+        required: true
+        type: string
+      # 可選：若上游已建立進度留言，這裡可以直接指定 comment id 來沿用。
+      comment_id:
+        description: 'Existing issue comment ID to reuse for progress updates'
+        required: false
+        type: string
+      # 可選：觸發來源，方便 workflow 內部根據不同來源調整行為或紀錄分析用。
+      event_source:
+        description: 'Who is triggering this workflow: cron or issue'
+        required: false
+        type: choice
+        default: ''
+        options:
+          - ''
+          - cron
+          - issue
+      event_data:
+        description: 'Additional data related to the event that triggered this workflow'
+        required: false
+        type: string
+        default: ''
+  # 讓外部 dispatcher 用 API 觸發這個 workflow。
+  repository_dispatch:
+    types: [coding-agent]
+
+# Actions UI 上顯示的執行名稱，會把 issue 編號直接帶進來，方便辨識。
+run-name: "🤖 Run Issue #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+
+# 避免同一個 repo + issue 同時有多個 agent 執行互相覆蓋。
+concurrency:
+  group: "coding-agent-${{ github.repository }}-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  cancel-in-progress: false
+
+# 這個 workflow 需要能推送內容，也需要能建立/更新 issue comment。
+permissions:
+  contents: write
+  issues: write
+
+# 把不同 trigger 的 payload 統一整理成共用環境變數，後續 step 只要讀 env 即可。
+env:
+  # 統一後的 issue 編號。
+  ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  # 若有提供現成的 comment id，就直接更新那則留言。
+  COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
+  # 給 Codex CLI 做 Gemini API 認證用的金鑰；實際權限要看 repo secrets 如何配置。
+  GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+
+
+jobs:
+  # 單一主 job：在 GitHub-hosted runner 上完成驗證、執行 agent、寫回結果。
+  run-agent:
+    # 直接跑在 Ubuntu runner，不是以 Docker container 執行。
+    runs-on: ubuntu-latest
+    # 最多允許執行 90 分鐘，避免 workflow 無限卡住。
+    timeout-minutes: 90
+
+    steps:
+      # 把目標 repo 檢出到 runner，後面才能切 branch、寫檔與 push。
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+          fetch-depth: 1
+
+      # 先把 Node.js 環境準備好，方便 CLI 或 Node-based tooling 使用。
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # 安裝 OpenAI Codex CLI，這是後續執行任務的核心工具。
+      - name: Install OpenAI Codex CLI
+        run: npm install -g @openai/codex
+
+      - name: 狀態更新處理
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
+        shell: bash
+        run: |
+          echo "StatusUpdate event detected, performing status update..."
+
+      - name: 執行任務
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        id: codex_task
+        shell: bash
+        env:
+          CODEX_HOME: ".codex"
+          GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
+        run: |
+          mkdir -p "artifacts/${{ env.COMMENT_ID }}"
+          codex exec --yolo "目前 issue-comment-id 為： ${{ env.COMMENT_ID }} ， $(cat issue.md)" 2> artifacts/${{ env.COMMENT_ID }}/error.log |tee artifacts/${{ env.COMMENT_ID }}/output.jsonl
+
+      - name: 推送結果
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update results for issue #${{ env.ISSUE_NUMBER }}"
+          fi
+          git push origin "issue-${{ env.ISSUE_NUMBER }}" --force
+
+      - name: 任務失敗處理
+        if: failure() && steps.codex_task.conclusion == 'failure'
+        uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.0
+        with:
+          output_file: artifacts/${{ env.COMMENT_ID }}/error.log
+          result_file: artifacts/${{ env.COMMENT_ID }}/result.md
+
+
+      - name: 執行結果回報
+        if: always()
+        uses: duotify/GitHubClawToolkit/actions/update-comment-action@v1.1.0
+        with:
+          issue_number: ${{ env.ISSUE_NUMBER }}
+          comment_id: ${{ env.COMMENT_ID }}
+          message_file: artifacts/${{ env.COMMENT_ID }}/result.md
