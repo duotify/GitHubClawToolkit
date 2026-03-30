@@ -5,15 +5,17 @@
  * Simple Gemini image CLI wrapper (no dependencies).
  *
  * Usage:
- *   nanobanana --prompt "A banana astronaut in space"
- *   nanobanana -p "Stylize this" -i .\ref1.png -i .\ref2.jpg --resolution 512
- *   nanobanana --prompt "Forecast infographic" --google-search
+ *   gemini-nanobanana --prompt "A banana astronaut in space"
+ *   gemini-nanobanana -p "Stylize this" -i .\ref1.png -i .\ref2.jpg --resolution 512
+ *   gemini-nanobanana --prompt "Forecast infographic" --google-search
  */
 
 const fs = require("node:fs");
 const path = require("node:path");
 
-const DEFAULT_MODEL = process.env.NANOBANANA_MODEL || "gemini-3.1-flash-image-preview";
+const DEFAULT_MODEL =
+  process.env.GEMINI_NANOBANANA_MODEL ||
+  "gemini-3.1-flash-image-preview";
 const DEFAULT_THINKING = "high";
 const DEFAULT_ASPECT_RATIO = "Auto";
 const DEFAULT_RESOLUTION = "1K";
@@ -23,25 +25,24 @@ const MAX_REFERENCE_IMAGES = 14;
 const HELP_FLAGS = new Set(["-h", "--help"]);
 
 function printHelp() {
-  console.log(`Nano Banana Gemini Image CLI
+  console.log(`Gemini Nano Banana Image CLI
 
 Usage:
-  nanobanana [options] --prompt "your prompt"
-  nanobanana [options] "your prompt"
-  npx @willh/nanobanana-cli [options] --prompt "your prompt"
+  gemini-nanobanana [options] --prompt "your prompt"
+  gemini-nanobanana [options] "your prompt"
 
 Options:
   -p, --prompt <text>         Prompt text
   -i, --image <path>          Reference image path (repeatable, max 14)
       --images <p1,p2,...>    Comma-separated image paths (max 14 total)
-      --model <name>          Model (default: NANOBANANA_MODEL or gemini-3.1-flash-image-preview)
+      --model <name>          Model (default: GEMINI_NANOBANANA_MODEL or gemini-3.1-flash-image-preview)
       --thinking <level>      minimal | low | medium | high (default: high)
       --aspect-ratio <ratio>  e.g. 1:1, 16:9, 5:4, Auto (default: Auto)
       --resolution <size>     512 | 512px | 1K | 2K | 4K (default: 1K)
       --output-mode <mode>    images | both (default: images)
       --google-search         Enable Google Search grounding tool
       --output-dir <dir>      Save directory (default: nanobanana-output, or inferred from prompt)
-      --api-key <key>         Gemini API key (default: NANOBANANA_GEMINI_API_KEY, fallback: GEMINI_API_KEY)
+      --api-key <key>         Gemini API key (default: GEMINI_NANOBANANA_API_KEY, fallback: GEMINI_API_KEY)
       --name-prefix <prefix>  Output file prefix (default: nanobanana)
   -h, --help                  Show help
 `);
@@ -67,7 +68,8 @@ function parseArgs(argv) {
     outputMode: DEFAULT_OUTPUT_MODE,
     googleSearch: false,
     outputDir: "",
-    apiKey: process.env.NANOBANANA_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "",
+    apiKey:
+      process.env.GEMINI_NANOBANANA_API_KEY || process.env.GEMINI_API_KEY || "",
     namePrefix: "nanobanana",
   };
   const promptParts = [];
@@ -326,7 +328,7 @@ async function main() {
   }
 
   if (!options.apiKey) {
-    throw new Error("Missing API key. Set NANOBANANA_GEMINI_API_KEY, GEMINI_API_KEY, or pass --api-key.");
+    throw new Error("Missing API key. Set GEMINI_NANOBANANA_API_KEY, GEMINI_API_KEY, or pass --api-key.");
   }
   if (!options.prompt) {
     throw new Error("Missing prompt. Use --prompt or provide a positional prompt.");

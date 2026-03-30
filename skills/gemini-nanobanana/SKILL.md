@@ -1,18 +1,18 @@
 ---
 name: gemini-nanobanana
-description: Use this skill when users ask to generate, edit, or compose images with Nano Banana (Gemini image models), including text-to-image, image editing, multi-image composition, grounding, and output sizing/saving controls.
+description: Use this skill when users ask to generate, edit, or compose images with Gemini Nano Banana 2, including text-to-image, image editing, multi-image composition, grounding, and output sizing/saving controls.
 required_env:
   - GEMINI_API_KEY
 ---
 
 ## Do this first
 - Use a Node.js wrapper (`@google/genai`) as the primary flow (multi-turn edits, grounding, advanced `generationConfig`).
-- Use `scripts/nanobanana-cli.js` for quick single-turn generation/editing runs.
+- Use `scripts/gemini-nanobanana-cli.js` for quick single-turn generation/editing runs.
 - Do **not** teach raw `curl`; keep guidance in JS CLI/wrapper form.
 
 ## Enforce these defaults
-- API key source: `NANOBANANA_GEMINI_API_KEY` with fallback `GEMINI_API_KEY`.
-- Default model: `gemini-3.1-flash-image-preview` (allow env override via `NANOBANANA_MODEL`).
+- API key source: `GEMINI_NANOBANANA_API_KEY` with fallback `GEMINI_API_KEY`.
+- Default model: `gemini-3.1-flash-image-preview` (allow env override via `GEMINI_NANOBANANA_MODEL`).
 - Reference images: support up to **14** total.
 - Thinking strength: configurable (`minimal|low|medium|high`), default **High**.
 - Aspect ratio: default **Auto**.
@@ -81,7 +81,7 @@ Assuming `GITHUB_REPO=test/baoclaw-5`, `BRANCH=issue-3`:
 - Default to Node.js wrapper flows for regular usage, especially when payload control is needed.
 - Quick path (agent runs from `issue-N/`; resolve the repo root first):
   - `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "../..")` then
-    `node "$REPO_ROOT/.agents/skills/gemini-nanobanana/scripts/nanobanana-cli.js" --prompt "..."`
+    `node "$REPO_ROOT/.agents/skills/gemini-nanobanana/scripts/gemini-nanobanana-cli.js" --prompt "..."`
   - Add references via repeated `-i/--image` (up to 14).
   - Enable grounding via `--google-search` when prompt needs fresh web context.
-- The API key (`GEMINI_API_KEY` / `NANOBANANA_GEMINI_API_KEY`) is injected by the workflow environment; do **not** hardcode it. The CLI reads it automatically from the environment.
+- The API key (`GEMINI_NANOBANANA_API_KEY` / `GEMINI_API_KEY`) is injected by the workflow environment; do **not** hardcode it. The CLI reads it automatically from the environment.
