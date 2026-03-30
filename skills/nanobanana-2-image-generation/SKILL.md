@@ -33,23 +33,53 @@ required_env:
   - [Grounding with Google Image Search](https://ai.google.dev/gemini-api/docs/image-generation#image-search)
 
 ## Output formatting rules
-- After successful generation, **always** report results in this format:
-  1. A short completion message (e.g. `✅ 圖片已產出`)
-  2. The **relative path** to each generated file, formatted as a markdown image embed: `![description](relative/path/to/image.jpg)`
-  3. File metadata: format (`JPEG`/`PNG`), dimensions, file size
-- Example final answer:
-  ```
-  ✅ 圖片已產出
 
-  ![一杯抹茶拿鐵](workspaces/issue-2/nanobanana-output/matcha-latte-01.jpg)
+After successful generation, **always** report results in this format:
 
-  - 格式：JPEG · 1408×768 · 757 KB
-  ```
-- This ensures downstream systems (GitHub Issue comments, Telegram relay) can display or link to the image.
+1. `✅ 圖片已產出`
+2. Each image as a **markdown embed with absolute GitHub URL**:
+   `![description](https://github.com/{GITHUB_REPO}/blob/{BRANCH}/{relative_path}?raw=true)`
+3. File metadata: format (`JPEG`/`PNG`), dimensions, file size
+4. **Artifact metadata** block (enables Telegram relay to send the actual photo):
+   `<!-- githubclaw-artifacts: {"images":[{"branch":"{BRANCH}","path":"{relative_path}"}],"html":[]} -->`
+
+### Example (single image)
+
+Assuming `GITHUB_REPO=test/baoclaw-5`, `BRANCH=issue-3`:
+
+```
+✅ 圖片已產出
+
+![一杯抹茶拿鐵](https://github.com/test/baoclaw-5/blob/issue-3/issue-3/artifacts/4153431460/matcha-latte-01.jpg?raw=true)
+
+- 格式：JPEG · 1408×768 · 757 KB
+
+<!-- githubclaw-artifacts: {"images":[{"branch":"issue-3","path":"issue-3/artifacts/4153431460/matcha-latte-01.jpg"}],"html":[]} -->
+```
+
+### Example (multiple images)
+
+```
+✅ 圖片已產出
+
+![圖 1](https://github.com/test/baoclaw-5/blob/issue-3/issue-3/artifacts/4153431460/cute-puppy-01.jpg?raw=true)
+![圖 2](https://github.com/test/baoclaw-5/blob/issue-3/issue-3/artifacts/4153431460/cute-puppy-02.jpg?raw=true)
+
+- 圖 1：JPEG · 1408×768 · 703 KB
+- 圖 2：JPEG · 1408×768 · 512 KB
+
+<!-- githubclaw-artifacts: {"images":[{"branch":"issue-3","path":"issue-3/artifacts/4153431460/cute-puppy-01.jpg"},{"branch":"issue-3","path":"issue-3/artifacts/4153431460/cute-puppy-02.jpg"}],"html":[]} -->
+```
+
+### Why this format
+
+- **GitHub Issue comments** require absolute URLs to render images inline (relative paths won't display).
+- **Telegram relay** detects `githubclaw-artifacts` metadata → downloads image via GitHub API → sends as photo.
+- `?raw=true` ensures GitHub serves raw image bytes instead of the HTML file viewer.
 
 ## Execution pattern
 - Default to Node.js wrapper flows for regular usage, especially when payload control is needed.
-- Quick path (agent runs from `workspaces/issue-N/`; resolve the repo root first):
+- Quick path (agent runs from `issue-N/`; resolve the repo root first):
   - `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "../..")` then
     `node "$REPO_ROOT/.agents/skills/nanobanana-2-image-generation/scripts/nanobanana-cli.js" --prompt "..."`
   - Add references via repeated `-i/--image` (up to 14).
