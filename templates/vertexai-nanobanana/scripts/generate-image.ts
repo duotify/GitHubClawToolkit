@@ -96,6 +96,7 @@ async function main(): Promise<void> {
 
   const issueDir = process.env.ISSUE_DIR;
   if (!issueDir) throw new Error('缺少 ISSUE_DIR 環境變數');
+  const issueWorktree = process.env.ISSUE_WORKTREE ? path.resolve(process.env.ISSUE_WORKTREE) : null;
 
   const namePrefix = normalizeText(process.env.NAME_PREFIX) || 'image';
   const model = normalizeText(process.env.NANOBANANA_MODEL) || 'google/gemini-3-pro-image-preview';
@@ -153,7 +154,9 @@ async function main(): Promise<void> {
     const extension = mimeToExtension(image.mimeType);
     const filePath = path.join(resolvedIssueDir, `${namePrefix}-${idx}${extension}`);
     await writeFile(filePath, Buffer.from(image.data, 'base64'));
-    const relativePath = path.relative(process.cwd(), filePath);
+    const relativePath = issueWorktree && filePath.startsWith(issueWorktree + path.sep)
+      ? path.relative(issueWorktree, filePath)
+      : path.relative(process.cwd(), filePath);
     savedFiles.push(relativePath);
     console.log(`Saved: ${relativePath}`);
     idx += 1;

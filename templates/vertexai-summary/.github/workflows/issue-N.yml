@@ -51,6 +51,8 @@ env:
   ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
   COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
   USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
+  ISSUE_BRANCH: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  ISSUE_WORKTREE: "./issue-worktree"
   BRAIN_META: '<!-- githubclaw-brain-result: {"source":"githubclaw-worker-brain"} -->'
   VERTEXAI_API_KEY: "${{ secrets.VERTEXAI_API_KEY }}"
 
@@ -60,12 +62,20 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
+      - name: Checkout main branch
         uses: actions/checkout@v4
         with:
-          ref: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+          ref: "main"
           fetch-depth: 1
           token: "${{ github.token }}"
+
+      - name: Checkout issue branch
+        uses: actions/checkout@v4
+        with:
+          ref: "${{ env.ISSUE_BRANCH }}"
+          fetch-depth: 1
+          token: "${{ github.token }}"
+          path: "issue-worktree"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -88,23 +98,29 @@ jobs:
         shell: bash
         env:
           VERTEXAI_API_KEY: ${{ env.VERTEXAI_API_KEY }}
-          ISSUE_DIR: "./artifacts/${{ env.COMMENT_ID }}"
-          SYSTEM_PROMPT_FILE: "./SYSTEM.md"
-          TEMPLATE_ROOT: "."
-          SUMMARY_SCRIPT: "./scripts/summarize.ts"
+          ISSUE_DIR: "./issue-worktree/artifacts/${{ env.COMMENT_ID }}"
+          SYSTEM_PROMPT_FILE: "./templates/vertexai-summary/SYSTEM.md"
+          TEMPLATE_ROOT: "./templates/vertexai-summary"
+          SUMMARY_SCRIPT: "./templates/vertexai-summary/scripts/summarize.ts"
         run: |
           set -euo pipefail
 
           prompt_comment_id="${USER_COMMENT_ID:-${COMMENT_ID}}"
-          PROMPT_FILE="./artifacts/${prompt_comment_id}/user.md"
+          PROMPT_FILE="${ISSUE_WORKTREE}/artifacts/${prompt_comment_id}/user.md"
+          context_jsonl_file="$(find "${ISSUE_WORKTREE}" -maxdepth 1 -type f -name '*.jsonl' | head -n 1 || true)"
 
           if [[ ! -f "${PROMPT_FILE}" ]]; then
             echo "::error::${PROMPT_FILE} 不存在。請確認 issue branch 已建立 artifacts/${prompt_comment_id}/user.md。"
             exit 1
           fi
 
+          if [[ -z "${context_jsonl_file}" ]]; then
+            echo "::error::找不到 issue branch 根目錄 jsonl 檔案。"
+            exit 1
+          fi
+
           echo "::notice::將使用 ${PROMPT_FILE} 作為 user prompt"
-          summary="$(PROMPT_FILE="${PROMPT_FILE}" SYSTEM_PROMPT_FILE="${SYSTEM_PROMPT_FILE}" TEMPLATE_ROOT="${TEMPLATE_ROOT}" bun run "${SUMMARY_SCRIPT}")"
+          summary="$(PROMPT_FILE="${PROMPT_FILE}" CONTEXT_JSONL_FILE="${context_jsonl_file}" SYSTEM_PROMPT_FILE="${SYSTEM_PROMPT_FILE}" TEMPLATE_ROOT="${TEMPLATE_ROOT}" bun run "${SUMMARY_SCRIPT}")"
 
           if [[ -z "${summary// /}" ]]; then
             echo "::error::scripts/summarize.ts 未回傳任何摘要內容"
@@ -127,6 +143,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          cd "${ISSUE_WORKTREE}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -138,14 +155,14 @@ jobs:
           else
             git commit -m "chore: add vertex summary for issue #${{ env.ISSUE_NUMBER }}"
           fi
-          git push origin "issue-${{ env.ISSUE_NUMBER }}" --force
+          git push origin "${ISSUE_BRANCH}" --force
 
       - name: 任務失敗處理
         if: failure() && steps.summarize.conclusion == 'failure'
         uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.0
         with:
-          output_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
-          result_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
+          output_file: "issue-worktree/artifacts/${{ env.COMMENT_ID }}/result.md"
+          result_file: "issue-worktree/artifacts/${{ env.COMMENT_ID }}/result.md"
 
       - name: 執行結果回報
         if: always()
@@ -153,4 +170,4 @@ jobs:
         with:
           issue_number: ${{ env.ISSUE_NUMBER }}
           comment_id: ${{ env.COMMENT_ID }}
-          message_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
+          message_file: "issue-worktree/artifacts/${{ env.COMMENT_ID }}/result.md"
