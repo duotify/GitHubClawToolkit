@@ -98,7 +98,7 @@ async function main(): Promise<void> {
   if (!issueDir) throw new Error('缺少 ISSUE_DIR 環境變數');
 
   const namePrefix = normalizeText(process.env.NAME_PREFIX) || 'image';
-  const model = normalizeText(process.env.NANOBANANA_MODEL) || 'gemini-2.5-flash-image';
+  const model = normalizeText(process.env.NANOBANANA_MODEL) || 'google/gemini-3-pro-image-preview';
   const userPrompt = await readUserPrompt(promptFile);
   const contextJsonlPath = await resolveContextJsonlPath();
   const contextJsonl = await readContextJsonl(contextJsonlPath);

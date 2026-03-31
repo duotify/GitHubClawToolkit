@@ -95,6 +95,9 @@ jobs:
           VERTEXAI_API_KEY: ${{ env.VERTEXAI_API_KEY }}
           NANOBANANA_MODEL: ${{ env.MODEL }}
           ISSUE_DIR: "./artifacts/${{ env.COMMENT_ID }}"
+          SYSTEM_PROMPT_FILE: "./templates/vertexai-nanobanana/SYSTEM.md"
+          TEMPLATE_ROOT: "./templates/vertexai-nanobanana"
+          GENERATE_SCRIPT: "./templates/vertexai-nanobanana/scripts/generate-image.ts"
           NAME_PREFIX: "image-${{ env.COMMENT_ID || env.ISSUE_NUMBER }}"
         run: |
           set -euo pipefail
