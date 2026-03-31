@@ -1,8 +1,6 @@
 ---
 name: felo-search
 description: "Felo AI real-time web search for questions requiring current/live information. Triggers on current events, news, trends, real-time data, information queries, location queries, how-to guides, shopping, or when Claude's knowledge may be outdated."
-required_env:
-  - FELO_API_KEY
 ---
 
 # Felo Search Skill

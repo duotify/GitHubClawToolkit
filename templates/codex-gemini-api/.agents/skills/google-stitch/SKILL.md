@@ -1,8 +1,6 @@
 ---
 name: google-stitch
 description: Use this skill when users want to generate UI mockups, landing pages, wireframes, design concepts, marketing sections, or page prototypes from a prompt and need both a design image and matching HTML. Prefer this skill whenever the user asks for「設計圖 + HTML」、「UI 原型」、「Landing Page 草稿」、「prompt 生成介面」或 Google Stitch / Stitch with Google style workflows.
-required_env:
-  - GEMINI_API_KEY
 ---
 
 # Google Stitch 設計生成 Skill

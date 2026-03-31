@@ -1,8 +1,6 @@
 ---
 name: gemini-audio-transcriber
 description: Use this skill when a user provides an audio file (local file or URL) and wants it transcribed into Traditional Chinese text. Prefer this skill for requests like "transcribe this audio", "convert speech to text", "轉錄這段錄音", "語音轉文字", or when converting meeting recordings, voice memos, or podcast clips to text. The output can be further processed by meeting-note-formatter for structured meeting notes.
-required_env:
-  - GEMINI_API_KEY
 ---
 
 # 音訊轉繁中逐字稿 Skill

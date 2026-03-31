@@ -1,8 +1,6 @@
 ---
 name: felo-slides
 description: "Generate PPT/slides with Felo PPT Task API in Claude Code. Use when users ask to create/make/generate/export presentations or slide decks, or when explicit commands like /felo-slides are used. Handles API key check, task creation, polling, and final ppt_url output."
-required_env:
-  - FELO_API_KEY
 ---
 
 # Felo Slides Skill

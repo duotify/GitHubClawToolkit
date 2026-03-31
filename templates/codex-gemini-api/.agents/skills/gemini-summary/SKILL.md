@@ -1,8 +1,6 @@
 ---
 name: gemini-summary
 description: Use this skill when a user provides a web page URL, PDF file, video, or audio file and wants a Traditional Chinese summary. Prefer this skill for requests like "summarize this URL", "summarize this PDF", "summarize this video", "summarize this audio", "幫我摘要這篇", "這份報告重點是什麼", "幫我總結這段影片", "幫我摘要這段錄音", or when analyzing articles, documents, presentations, YouTube videos, audio recordings, or any content that needs a zh-TW summary. Automatically detects input type (web page, PDF, video, audio) — no manual type selection needed.
-required_env:
-  - GEMINI_API_KEY
 ---
 
 # 內容摘要 Skill

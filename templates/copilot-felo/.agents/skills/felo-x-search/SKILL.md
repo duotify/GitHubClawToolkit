@@ -1,8 +1,6 @@
 ---
 name: felo-x-search
 description: "Search X (Twitter) data using Felo X Search API. Use when users ask about X/Twitter users, tweets, trending topics on X, tweet replies, or when explicit commands like /felo-x-search are used. Supports user lookup, user search, user tweets, tweet search, and tweet replies."
-required_env:
-  - FELO_API_KEY
 ---
 
 # Felo X Search Skill

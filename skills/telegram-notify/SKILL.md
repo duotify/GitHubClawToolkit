@@ -6,9 +6,6 @@ description: >-
   GitHub Actions workflows, sending pipeline end summaries, notifying teams
   about automation progress or repository changes. Requires TELEGRAM_BOT_TOKEN
   and TELEGRAM_CHAT_ID environment variables or GitHub Secrets.
-required_env:
-  - TELEGRAM_BOT_TOKEN
-  - TELEGRAM_CHAT_ID
 ---
 
 # Telegram Notify

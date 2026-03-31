@@ -1,8 +1,6 @@
 ---
 name: gemini-deep-researcher
 description: Use this skill when a user wants a comprehensive research report on any topic with cited sources. Prefer this skill for requests like "research this topic", "give me a deep analysis of", "幫我研究", "深度分析", or when the user needs a well-sourced report for decision-making, presentations, or learning. This skill uses Gemini's Deep Research agent and takes several minutes to complete.
-required_env:
-  - GEMINI_API_KEY
 ---
 
 # Deep Researcher — 深度研究報告工具

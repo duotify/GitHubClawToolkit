@@ -1,8 +1,6 @@
 ---
 name: gemini-image-describer
 description: Use this skill when a user provides an image (local file or URL) and wants a detailed Traditional Chinese description of the image content. Prefer this skill for requests like "describe this image", "what's in this picture", "OCR this screenshot", "辨識這張圖", "描述這張照片", or when extracting text from screenshots or photos.
-required_env:
-  - GEMINI_API_KEY
 ---
 
 # Image Describer Skill

@@ -1,8 +1,6 @@
 ---
 name: gemini-nanobanana
 description: Use this skill when users ask to generate, edit, or compose images with Gemini Nano Banana 2, including text-to-image, image editing, multi-image composition, grounding, and output sizing/saving controls.
-required_env:
-  - GEMINI_API_KEY
 ---
 
 ## Do this first

@@ -1,8 +1,6 @@
 ---
 name: felo-web-fetch
 description: "Extract webpage content with Felo Web Extract API. Use for turning URLs into html/markdown/text, selecting specific page areas with CSS selectors, and controlling extraction options like crawl mode, cookies, user-agent, and timeout."
-required_env:
-  - FELO_API_KEY
 ---
 
 # Felo Web Fetch Skill
