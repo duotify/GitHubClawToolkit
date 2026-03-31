@@ -16,6 +16,10 @@ on:
         description: 'Existing issue comment ID to reuse for progress updates'
         required: false
         type: string
+      user_comment_id:
+        description: 'User issue comment ID used to locate artifacts/{user_comment_id}/user.md'
+        required: false
+        type: string
       event_source:
         description: 'Who is triggering this workflow: cron or issue'
         required: false
@@ -51,6 +55,7 @@ permissions:
 env:
   ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
   COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
+  USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
   MODEL: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.model || inputs.model || 'gemini-2.5-flash-image' }}"
   VERTEXAI_API_KEY: "${{ secrets.VERTEXAI_API_KEY }}"
 
@@ -90,7 +95,6 @@ jobs:
           VERTEXAI_API_KEY: ${{ env.VERTEXAI_API_KEY }}
           NANOBANANA_MODEL: ${{ env.MODEL }}
           ISSUE_DIR: "./artifacts/${{ env.COMMENT_ID }}"
-          PROMPT_FILE: "./artifacts/${{ env.COMMENT_ID }}/user.md"
           SYSTEM_PROMPT_FILE: "./SYSTEM.md"
           TEMPLATE_ROOT: "."
           GENERATE_SCRIPT: "./scripts/generate-image.ts"
@@ -98,28 +102,16 @@ jobs:
         run: |
           set -euo pipefail
 
+          prompt_comment_id="${USER_COMMENT_ID:-${COMMENT_ID}}"
+          PROMPT_FILE="./artifacts/${prompt_comment_id}/user.md"
+
           if [[ ! -f "${PROMPT_FILE}" ]]; then
-            echo "::error::${PROMPT_FILE} 不存在。請確認 issue branch 已建立 artifacts/${COMMENT_ID}/user.md。"
+            echo "::error::${PROMPT_FILE} 不存在。請確認 issue branch 已建立 artifacts/${prompt_comment_id}/user.md。"
             exit 1
           fi
 
-          context_jsonl_file="$(find . -maxdepth 1 -type f -name '*.jsonl' | head -n 1 || true)"
-          if [[ -z "${context_jsonl_file}" ]]; then
-            echo "::error::找不到根目錄 jsonl 檔案。請確認 issue branch root 目錄有可供參考上下文的 jsonl。"
-            exit 1
-          fi
-
-          if [[ ! -f "${SYSTEM_PROMPT_FILE}" ]]; then
-            echo "::error::${SYSTEM_PROMPT_FILE} 不存在。請確認 SYSTEM.md 已存在於模板根目錄。"
-            exit 1
-          fi
-
-          if [[ ! -f "${GENERATE_SCRIPT}" ]]; then
-            echo "::error::${GENERATE_SCRIPT} 不存在。請確認 scripts/generate-image.ts 已正確放在 issue branch。"
-            exit 1
-          fi
-
-          output="$(PROMPT_FILE="${PROMPT_FILE}" CONTEXT_JSONL_FILE="${context_jsonl_file}" SYSTEM_PROMPT_FILE="${SYSTEM_PROMPT_FILE}" TEMPLATE_ROOT="${TEMPLATE_ROOT}" ISSUE_DIR="${ISSUE_DIR}" NAME_PREFIX="${NAME_PREFIX}" NANOBANANA_MODEL="${NANOBANANA_MODEL}" bun run "${GENERATE_SCRIPT}")"
+          echo "::notice::將使用 ${PROMPT_FILE} 作為 user prompt"
+          output="$(PROMPT_FILE="${PROMPT_FILE}" SYSTEM_PROMPT_FILE="${SYSTEM_PROMPT_FILE}" TEMPLATE_ROOT="${TEMPLATE_ROOT}" ISSUE_DIR="${ISSUE_DIR}" NAME_PREFIX="${NAME_PREFIX}" NANOBANANA_MODEL="${NANOBANANA_MODEL}" bun run "${GENERATE_SCRIPT}")"
           echo "${output}"
 
           saved_files="$(echo "${output}" | grep '^Saved: ' | sed 's/^Saved: //' | paste -sd ',' -)"
