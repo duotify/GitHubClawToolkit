@@ -13,7 +13,7 @@
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
   "modelVar": "VERTEXAI_NANOBANANA_MODEL",
-  "requiredEnv": ["VERTEXAI_NANOBANANA_API_KEY"],
+  "requireEnv": ["VERTEXAI_NANOBANANA_API_KEY"],
   "models": ["google/gemini-3-pro-image-preview"],
   "apiFormat": "vertexai"
 }
