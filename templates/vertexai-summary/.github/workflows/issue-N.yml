@@ -1,0 +1,163 @@
+# 內容摘要 workflow。
+# 使用 Vertex AI 模型（內嵌 Node.js 腳本），從 artifacts/<comment-id>/user.md 讀取 user prompt，並參考根目錄 jsonl 上下文，
+# 生成 Markdown 摘要並 commit 到 issue branch，最後回寫 issue comment。
+#
+# 認證模式：僅支援 Vertex AI API Key（VERTEXAI_API_KEY secret）。
+name: '執行小龍蝦任務 #N'
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'GitHub issue number to process'
+        required: true
+        type: string
+      comment_id:
+        description: 'Existing issue comment ID to reuse for progress updates'
+        required: false
+        type: string
+      event_source:
+        description: 'Who is triggering this workflow: cron or issue'
+        required: false
+        type: choice
+        default: ''
+        options:
+          - ''
+          - cron
+          - issue
+      event_data:
+        description: 'Additional data related to the event that triggered this workflow'
+        required: false
+        type: string
+        default: ''
+  repository_dispatch:
+    types: [summarize-content]
+
+run-name: "📝 Summarize Content Issue #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+
+concurrency:
+  group: "summarize-content-${{ github.repository }}-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
+  BRAIN_META: '<!-- githubclaw-brain-result: {"source":"githubclaw-worker-brain"} -->'
+  VERTEXAI_API_KEY: "${{ secrets.VERTEXAI_API_KEY }}"
+
+jobs:
+  run-summarize-content:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+          fetch-depth: 1
+          token: "${{ github.token }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --no-fund --no-audit @google/genai @mozilla/readability linkedom
+
+      - name: 狀態更新處理
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
+        shell: bash
+        run: |
+          echo "StatusUpdate event detected, performing status update..."
+
+      - name: 執行任務
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        id: summarize
+        shell: bash
+        env:
+          VERTEXAI_API_KEY: ${{ env.VERTEXAI_API_KEY }}
+          ISSUE_DIR: "./artifacts/${{ env.COMMENT_ID }}"
+          PROMPT_FILE: "./artifacts/${{ env.COMMENT_ID }}/user.md"
+          SYSTEM_PROMPT_FILE: "./SYSTEM.md"
+          TEMPLATE_ROOT: "."
+          SUMMARY_SCRIPT: "./scripts/summarize.ts"
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "${PROMPT_FILE}" ]]; then
+            echo "::error::${PROMPT_FILE} 不存在。請確認 issue branch 已建立 artifacts/${COMMENT_ID}/user.md。"
+            exit 1
+          fi
+
+          context_jsonl_file="$(find . -maxdepth 1 -type f -name '*.jsonl' | head -n 1 || true)"
+          if [[ -z "${context_jsonl_file}" ]]; then
+            echo "::error::找不到根目錄 jsonl 檔案。請確認 issue branch root 目錄有可供參考上下文的 jsonl。"
+            exit 1
+          fi
+
+          if [[ ! -f "${SYSTEM_PROMPT_FILE}" ]]; then
+            echo "::error::${SYSTEM_PROMPT_FILE} 不存在。請確認 SYSTEM.md 已存在於模板根目錄。"
+            exit 1
+          fi
+
+          if [[ ! -f "${SUMMARY_SCRIPT}" ]]; then
+            echo "::error::${SUMMARY_SCRIPT} 不存在。請確認 scripts/summarize.ts 已正確放在 issue branch。"
+            exit 1
+          fi
+
+          echo "::notice::將使用 ${PROMPT_FILE} 作為 user prompt，並參考 ${context_jsonl_file} 上下文"
+          summary="$(PROMPT_FILE="${PROMPT_FILE}" CONTEXT_JSONL_FILE="${context_jsonl_file}" SYSTEM_PROMPT_FILE="${SYSTEM_PROMPT_FILE}" TEMPLATE_ROOT="${TEMPLATE_ROOT}" bun run "${SUMMARY_SCRIPT}")"
+
+          if [[ -z "${summary// /}" ]]; then
+            echo "::error::scripts/summarize.ts 未回傳任何摘要內容"
+            exit 1
+          fi
+
+          mkdir -p "${ISSUE_DIR}"
+          result_file="${ISSUE_DIR}/result.md"
+
+          {
+            printf '📝 內容摘要完成！\n\n'
+            printf '%s\n\n' "${summary}"
+          } > "${result_file}"
+
+          echo "::notice::摘要完成，結果已寫入 ${result_file}"
+
+      - name: 推送結果
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add "${ISSUE_DIR}/result.md"
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: add vertex summary for issue #${{ env.ISSUE_NUMBER }}"
+          fi
+          git push origin "issue-${{ env.ISSUE_NUMBER }}" --force
+
+      - name: 任務失敗處理
+        if: failure() && steps.summarize.conclusion == 'failure'
+        uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.0
+        with:
+          output_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
+          result_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
+
+      - name: 執行結果回報
+        if: always()
+        uses: duotify/GitHubClawToolkit/actions/update-comment-action@v1.1.0
+        with:
+          issue_number: ${{ env.ISSUE_NUMBER }}
+          comment_id: ${{ env.COMMENT_ID }}
+          message_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
