@@ -122,9 +122,10 @@ SUMMARY_DRY_RUN=1 node .agents/skills/gemini-summary/scripts/summarize.js "https
    ```
 4. 腳本會自動偵測輸入類型並選擇適當的處理方式與模型。
 5. 結果以串流方式輸出到 stdout，進度與錯誤訊息輸出到 stderr。
-6. 如果 exit code 為 1，表示發生錯誤，請檢查 stderr 的錯誤訊息，不要自行編造摘要。
-7. 可先用 `SUMMARY_DRY_RUN=1` 測試輸入偵測是否正確。
-8. 如果自動偵測不符預期，可用 `--type url|pdf|video|audio` 手動指定。
+6. 輸出中若包含連結，必須使用 Markdown 格式 `[文字](URL)`，不可使用 HTML `<a>` 標籤。
+7. 如果 exit code 為 1，表示發生錯誤，請檢查 stderr 的錯誤訊息，不要自行編造摘要。
+8. 可先用 `SUMMARY_DRY_RUN=1` 測試輸入偵測是否正確。
+9. 如果自動偵測不符預期，可用 `--type url|pdf|video|audio` 手動指定。
 
 ## 限制
 
