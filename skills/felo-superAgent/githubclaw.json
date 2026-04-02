@@ -1,0 +1,11 @@
+{
+  "name": "Felo SuperAgent",
+  "tagline": "AI 串流對話與 LiveDoc 畫布協作，支援標誌設計、電商圖片與多輪連續問答",
+  "description": "Felo SuperAgent 透過 Felo Open API 與 SuperAgent 進行 SSE 串流對話，支援多輪連續問答、LiveDoc 畫布資源追蹤與品牌風格寫作。可自動呼叫圖像生成、研究報告、PPT 製作、HTML 產生與 X 搜尋等工具，並提供風格庫選擇功能，適合標誌設計、電商圖片生成與深度主題探索。",
+  "category": "conversation",
+  "tags": ["felo", "superagent", "chat", "streaming", "livedoc", "logo", "image-generation"],
+  "version": "1.0.0",
+  "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
+  "homepage": "https://learn.duotify.com/courses/githubclaw",
+  "requireEnv": ["FELO_API_KEY"]
+}

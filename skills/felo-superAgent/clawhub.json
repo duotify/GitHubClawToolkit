@@ -1,0 +1,12 @@
+{
+  "name": "Felo SuperAgent",
+  "tagline": "AI conversation with real-time SSE streaming and LiveDoc in Claude Code",
+  "description": "Felo SuperAgent lets you chat with Felo SuperAgent via the Open API from Claude Code: create sessions, get SSE streamed replies, and continue conversations on the same LiveDoc. Supports thread/LiveDoc management, multi-language, and tools (image gen, reports, PPT, Twitter search). Requires a Felo API key.",
+  "category": "conversation",
+  "tags": ["felo", "superagent", "chat", "streaming", "livedoc", "api", "sse"],
+  "version": "1.0.0",
+  "license": "MIT",
+  "pricing": "free",
+  "support_url": "https://github.com/Felo-Inc/felo-skills/issues",
+  "homepage": "https://github.com/Felo-Inc/felo-skills"
+}
