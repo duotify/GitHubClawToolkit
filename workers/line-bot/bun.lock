@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "github-claw-dev-line-worker",
+      "name": "github-claw-dev-line-bot-worker",
       "dependencies": {
         "hono": "^4.10.6",
       },

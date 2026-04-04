@@ -4,6 +4,7 @@ import {
   parseDefaultGitHub,
   requireString,
 } from './source-rules.js';
+import { requireCloudflareWorkerName } from './worker-name.js';
 
 const DEFAULT_GH_API_BASE_URL = 'https://api.github.com';
 const DEFAULT_LINE_API_BASE_URL = 'https://api.line.me';
@@ -58,7 +59,7 @@ export function getConfig(env) {
 
   if (!defaultGithub) {
     throw createError(
-      'GITHUB_OWNER and GITHUB_REPO are required for LineWorker.',
+      'GITHUB_OWNER and GITHUB_REPO are required for LINEBotWorker.',
     );
   }
 
@@ -67,6 +68,17 @@ export function getConfig(env) {
     'ISSUE_NUMBER',
     createError,
   );
+  const derivedWorkerName = `${defaultGithub.owner}-${defaultGithub.repo}-line-bot-worker`;
+
+  let workerName;
+  try {
+    workerName = requireCloudflareWorkerName(derivedWorkerName, {
+      label: 'derived LINEBotWorker name',
+      workersDev: true,
+    }).normalizedValue;
+  } catch (error) {
+    throw createError(error.message);
+  }
 
   return {
     github: {
@@ -106,7 +118,7 @@ export function getConfig(env) {
       targetIssueUrl: targetIssueNumber
         ? `https://github.com/${defaultGithub.owner}/${defaultGithub.repo}/issues/${targetIssueNumber}`
         : null,
-      workerName: `${defaultGithub.owner}-${defaultGithub.repo}-line-worker`,
+      workerName,
     },
     assistant: createAssistantConfig(env),
   };

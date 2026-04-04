@@ -1,1 +1,1 @@
-export { default } from './presentation/http/line-worker.js';
+export { default } from './presentation/http/line-bot-worker.js';

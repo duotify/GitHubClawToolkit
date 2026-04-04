@@ -19,7 +19,7 @@ test('getConfig parses fixed worker issue settings', () => {
   assert.equal(config.assistant.utcOffsetMinutes, 8 * 60);
   assert.equal(config.assistant.defaultReplyText, null);
   assert.equal(config.line.targetIssueNumber, 123);
-  assert.equal(config.line.workerName, 'octo-fallback-line-worker');
+  assert.equal(config.line.workerName, 'octo-fallback-line-bot-worker');
   assert.equal(config.line.targetIssueUrl, 'https://github.com/octo/fallback/issues/123');
 });
 
@@ -36,7 +36,7 @@ test('getConfig tolerates quoted env values from dotenv-style deployment files',
   assert.equal(config.github.repoFullName, 'octo/fallback');
   assert.equal(config.line.issueBindingMode, 'fixed');
   assert.equal(config.line.targetIssueNumber, 123);
-  assert.equal(config.line.workerName, 'octo-fallback-line-worker');
+  assert.equal(config.line.workerName, 'octo-fallback-line-bot-worker');
   assert.equal(config.assistant.defaultReplyText, null);
 });
 
@@ -80,6 +80,18 @@ test('getConfig reads the optional default LINE reply message', () => {
   );
 });
 
+test('getConfig normalizes the derived worker name for workers.dev compatibility', () => {
+  const config = getConfig({
+    CLAW_SYS_GITHUB_TOKEN: 'github-token',
+    LINE_CHANNEL_SECRET: 'line-secret',
+    LINE_CHANNEL_ACCESS_TOKEN: 'line-access-token',
+    GITHUB_OWNER: 'octo',
+    GITHUB_REPO: 'fallback.bot_v2',
+  });
+
+  assert.equal(config.line.workerName, 'octo-fallback-bot-v2-line-bot-worker');
+});
+
 test('getConfig allows dynamic issue binding when ISSUE_NUMBER is omitted', () => {
   const config = getConfig({
     CLAW_SYS_GITHUB_TOKEN: 'github-token',
@@ -108,6 +120,22 @@ test('getConfig rejects invalid ISSUE_NUMBER values', () => {
     (error) =>
       error instanceof ConfigError
       && /ISSUE_NUMBER/.test(error.message),
+  );
+});
+
+test('getConfig rejects an overlong derived worker name', () => {
+  assert.throws(
+    () =>
+      getConfig({
+        CLAW_SYS_GITHUB_TOKEN: 'github-token',
+        GITHUB_OWNER: 'o'.repeat(30),
+        GITHUB_REPO: 'r'.repeat(30),
+        LINE_CHANNEL_SECRET: 'line-secret',
+        LINE_CHANNEL_ACCESS_TOKEN: 'line-access-token',
+      }),
+    (error) =>
+      error instanceof ConfigError
+      && /63 個字元/.test(error.message),
   );
 });
 

@@ -1,4 +1,4 @@
-# LineWorker
+# LINEBotWorker
 
 LINE webhook worker 的核心程式。收到 LINE 事件後，會把對話留言到指定的 GitHub issue；如果沒有固定 `ISSUE_NUMBER`，就會依 LINE source 自動找或建立唯一 issue，並把媒體檔存到該 issue 專屬 branch。
 
@@ -16,7 +16,7 @@ LINE webhook worker 的核心程式。收到 LINE 事件後，會把對話留言
 ## 結構
 
 ```text
-LineWorker/
+LINEBotWorker/
 ├── scripts/
 ├── src/
 │   ├── application/     use case / orchestration
@@ -44,6 +44,8 @@ bun run test
 - `bun run dev` / `bun run deploy` 需要傳入 `WORKER_NAME`
 - `bun run set` 需要傳入 `WORKER_NAME`，會把 `.dev.vars` 用 `wrangler secret bulk` 寫進指定 Worker
 - `bun run test` 或 `node --test` 都可以直接執行 worker 邏輯測試
+- `WORKER_NAME` 會先正規化：無效字元改成 `-`、連續 `-` 會合併、開頭結尾的 `-` 會移除
+- 因為 `wrangler.jsonc` 目前啟用 `workers_dev`，`WORKER_NAME` 正規化後仍必須在 63 字元以內，且只能包含英數字元與 `-`
 
 這個資料夾現在只保留最基本的 Cloudflare Worker 部署設定；執行時需要的環境值不再寫在 `wrangler.jsonc`。
 
@@ -74,7 +76,7 @@ bun run test
 - webhook 路徑固定是 `/line/webhook`
 - `CLAW_SYS_GITHUB_TOKEN` 需要 `Issues: read/write` 與 `Contents: read/write`
 - `ISSUE_NUMBER` 有值時會固定留言到該 issue；沒有值時會依 `user` / `group` / `room` source 自動找或建立唯一 issue
-- `LINE_WORKER_NAME` 不是環境變數，會直接用 `GITHUB_OWNER` / `GITHUB_REPO` 組成
+- `LINE_WORKER_NAME` 不是環境變數，會直接用 `GITHUB_OWNER` / `GITHUB_REPO` 組成，並套用相同的 Worker 名稱正規化規則
 - `LINE_DEFAULT_REPLY_MESSAGE` 會在事件可使用 reply token 時直接回覆一則固定訊息
 
 ## 輸出入口

@@ -1,13 +1,13 @@
 {
-  "name": "github-claw-dev-line-worker",
+  "name": "github-claw-dev-line-bot-worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "bun build ./src/index.js --outfile ./dist/index.mjs --target browser --format esm",
-    "dev": "test -n \"$WORKER_NAME\" && bunx wrangler dev --name \"$WORKER_NAME\"",
-    "deploy": "bun run build && test -n \"$WORKER_NAME\" && bunx wrangler deploy --name \"$WORKER_NAME\"",
-    "set": "test -n \"$WORKER_NAME\" && bunx wrangler secret bulk .dev.vars --name \"$WORKER_NAME\"",
+    "dev": "node ./scripts/run-wrangler-with-worker-name.mjs dev",
+    "deploy": "bun run build && node ./scripts/run-wrangler-with-worker-name.mjs deploy",
+    "set": "node ./scripts/run-wrangler-with-worker-name.mjs secret bulk .dev.vars",
     "test": "node --test"
   },
   "dependencies": {

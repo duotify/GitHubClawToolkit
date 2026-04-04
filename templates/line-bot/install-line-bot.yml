@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout Line Worker source
+      - name: Checkout LINEBotWorker source
         uses: actions/checkout@v4
         with:
           repository: duotify/GitHubClawSkills
@@ -61,14 +61,14 @@ jobs:
         with:
           bun-version: latest
 
-      - name: 安裝 Line Worker 依賴
+      - name: 安裝 LINEBotWorker 依賴
         shell: bash
         working-directory: template-source/workers/line-bot
         run: |
           set -euo pipefail
           bun install --frozen-lockfile
 
-      - name: Build Line Worker
+      - name: Build LINEBotWorker
         id: build
         shell: bash
         working-directory: template-source/workers/line-bot
@@ -78,21 +78,32 @@ jobs:
 
           echo "bundle_path=template-source/workers/line-bot/dist/index.mjs" >> "${GITHUB_OUTPUT}"
 
-      - name: 部署 Line Worker
+      - name: 正規化 LINEBotWorker 名稱
+        id: worker_name
+        shell: bash
+        working-directory: template-source/workers/line-bot
+        env:
+          RAW_WORKER_NAME: ${{ github.repository_owner }}-${{ github.event.repository.name }}-line-bot-worker
+        run: |
+          set -euo pipefail
+          WORKER_NAME="$(node ./scripts/resolve-worker-name.mjs "${RAW_WORKER_NAME}")"
+          echo "worker_name=${WORKER_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: 部署 LINEBotWorker
         id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy ${{ steps.build.outputs.bundle_path }} --config template-source/workers/line-bot/wrangler.jsonc --name ${{ github.repository_owner }}-${{ github.event.repository.name }}-line-worker
+          command: deploy ${{ steps.build.outputs.bundle_path }} --config template-source/workers/line-bot/wrangler.jsonc --name ${{ steps.worker_name.outputs.worker_name }}
 
-      - name: 同步 Line Worker secrets
+      - name: 同步 LINEBotWorker secrets
         shell: bash
         working-directory: template-source/workers/line-bot
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          WORKER_NAME: ${{ github.repository_owner }}-${{ github.event.repository.name }}-line-worker
+          WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           LINE_BOT_ID: ${{ inputs.line_bot_id }}
           LINE_CHANNEL_ID: ${{ inputs.line_bot_channel_id }}
@@ -142,14 +153,14 @@ jobs:
       - name: 寫入摘要
         shell: bash
         env:
-          WORKER_NAME: ${{ github.repository_owner }}-${{ github.event.repository.name }}-line-worker
+          WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
           LINE_BOT_ID: ${{ inputs.line_bot_id }}
           LINE_CHANNEL_ID: ${{ inputs.line_bot_channel_id }}
           WORKER_URL: ${{ steps.deploy.outputs.deployment-url }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
         run: |
           {
-            echo "### ✅ Line Worker 建立摘要"
+            echo "### ✅ LINEBotWorker 建立摘要"
             echo ""
             echo "| 項目 | 值 |"
             echo "|---|---|"

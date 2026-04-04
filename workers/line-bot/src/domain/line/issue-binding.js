@@ -35,7 +35,7 @@ export function buildSourceIssueDefinition(sourceInfo, context = {}) {
     body: [
       '# LINE Source Binding',
       '',
-      'This issue is automatically managed by the LINE Bot Worker.',
+      'This issue is automatically managed by the LINEBotWorker.',
       '',
       `- Source type: ${sourceInfo.type}`,
       `- Source key: ${sourceInfo.key}`,
