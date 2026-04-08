@@ -23,23 +23,43 @@
 
 | 設定項目 | 說明 |
 | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot 的 token（透過 @BotFather 取得） |
-| `TELEGRAM_CHAT_ID` | 要發送訊息的聊天室 ID 或頻道名稱 |
+| `TELEGRAM_NOTIFY_BOT_TOKEN` | 專用於通知的 Telegram Bot Token（透過 @BotFather 取得） |
 
-> 💡 **如何取得這些設定？**
+> 💡 **如何取得 Bot Token？**
 > 1. 在 Telegram 搜尋 [@BotFather](https://t.me/BotFather)，輸入 `/newbot` 建立一個新的 Bot
 > 2. BotFather 會給你一組 **Bot Token**（像 `123456:ABCDEF...`）
-> 3. 把 Bot 加到你的群組，然後用 API 查出 **Chat ID**
-> 4. 把這兩個值設定到小龍蝦的環境變數裡就完成了！
+> 3. 把這個值設定到小龍蝦的 `TELEGRAM_NOTIFY_BOT_TOKEN` 安全變數裡就完成了！
+
+## 📋 收件人設定（AGENTS.md）
+
+安裝此技能後，你可以在 `AGENTS.md` 中新增一個「Telegram 通知收件人」章節，定義**預設收件人**和 **CSV 對應表**：
+
+~~~markdown
+## 10) Telegram 通知收件人
+
+### 10.1 預設通知對象
+未指定收件人時，預設發送通知給：`Will`
+
+### 10.2 收件人對應表（CSV）
+請使用 CSV，每行一筆，格式固定為：`chat_id,名稱`
+
+```text
+123456789,Will
+-100987654321,Team
+```
+~~~
+
+這樣你就可以直接說「幫我發通知給 Will」，小龍蝦會自動從 CSV 對應表找到對應的 Chat ID 發送。
 
 ## 💬 提示詞範例
 
 ```text
 幫我發一則 Telegram 通知，說 build 已經成功完成
-部署跑完之後，發 Telegram 訊息通知我
-發一則訊息到我們的 Telegram 群組，說今天的自動測試全部通過
-用 HTML 格式發送部署報告到 Telegram
-通知 Telegram 群組：資料庫備份已完成
+幫我發通知給 Will，說部署跑完了
+部署跑完之後，發 Telegram 訊息通知 Team
+發一則訊息給 Will，說今天的自動測試全部通過
+用 HTML 格式發送部署報告給 Team
+通知 Will：資料庫備份已完成
 ```
 
 ## 📝 輸出範例
@@ -53,14 +73,16 @@ Telegram notification sent successfully.
 **失敗時** 會顯示錯誤細節，例如：
 
 ```
-Error: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set
+Error: TELEGRAM_NOTIFY_BOT_TOKEN must be set.
 ```
 
 ## ⚠️ 注意事項
 
 - 必須先透過 **@BotFather** 建立 Telegram Bot 並取得 token
 - Bot 需要先被**加入目標群組**，才能發送訊息到該群組
-- 當 `TELEGRAM_BOT_TOKEN` 或 `TELEGRAM_CHAT_ID` 未設定時，步驟會靜默跳過（不會報錯中斷流程）
+- 當 `TELEGRAM_NOTIFY_BOT_TOKEN` 未設定時，步驟會靜默跳過（不會報錯中斷流程）
+- 收件人的 Chat ID 必須在 `AGENTS.md` 的 CSV 對應表中定義，否則無法解析
+- CSV 格式固定為 `chat_id,名稱`，名稱不可包含逗點
 - 使用 MarkdownV2 格式時，特殊字元（如 `.`、`-`、`!`）需要用 `\` 跳脫
 
 ## 🔗 延伸閱讀

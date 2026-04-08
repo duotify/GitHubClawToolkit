@@ -4,8 +4,8 @@
   "description": "Telegram Notify 透過 Telegram Bot API 發送通知訊息，支援純文字、HTML 與 MarkdownV2 格式。可整合 GitHub Actions 工作流程，在 build 完成、部署成功或任務結束時自動推播到指定群組，僅需 shell script 與 curl 即可運作。",
   "category": "integration",
   "tags": ["telegram", "notification", "ci-cd", "messaging", "webhook"],
-  "version": "1.0.0",
+  "version": "1.1.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
-  "requireEnv": ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]
+  "requireEnv": ["TELEGRAM_NOTIFY_BOT_TOKEN"]
 }
