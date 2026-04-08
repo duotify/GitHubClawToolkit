@@ -104,16 +104,3 @@ https://github.com/{owner}/{repo}/blob/{branch}/artifacts/{issue-comment-id}/{fi
 * 回報前完成驗證與完成標準核對。
 * 一定要輸出 `artifacts/{issue-comment-id}/result.md` 這個檔案。
 * Artifacts 輸出到 `artifacts/{issue-comment-id}/` 路徑規範確實遵守。
-
-## 10) Telegram 通知收件人
-
-### 10.1 預設通知對象
-未指定收件人時，預設發送通知給：`（請填入預設收件人名稱）`
-
-### 10.2 收件人對應表（CSV）
-請使用 CSV，每行一筆，格式固定為：`chat_id,名稱`
-名稱不可包含逗點，Chat ID 請填 Telegram 實際 Chat ID。
-
-```text
-（請填入 Chat ID）,（請填入名稱）
-```
