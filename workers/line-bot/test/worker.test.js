@@ -515,6 +515,14 @@ test('direct user message reuses the existing source issue when ISSUE_NUMBER is 
       return jsonResponse(200, { displayName: 'Charlie' });
     }
 
+    if (String(url) === issueUrl(dynamicIssueNumber) && init.method === 'GET') {
+      return jsonResponse(200, {
+        number: dynamicIssueNumber,
+        title: '[LINE][user] Charlie (Udirect123)',
+        html_url: dynamicIssueUrl,
+      });
+    }
+
     if (String(url) === issueCommentUrl(dynamicIssueNumber) && init.method === 'POST') {
       return jsonResponse(201, {
         id: 1902,
@@ -670,6 +678,104 @@ test('group message creates a unique source issue when ISSUE_NUMBER is omitted',
     );
     assert.match(commentPayload.body, /- Group ID: Cgroup999/);
     assert.match(commentPayload.body, /- Sender: Alice/);
+  } finally {
+    fetchStub.restore();
+  }
+});
+
+test('group message updates the existing dynamic issue title when the group name changes', async () => {
+  const dynamicIssueNumber = 621;
+  const dynamicIssueUrl = `https://github.com/${DEFAULT_REPO_FULL_NAME}/issues/${dynamicIssueNumber}`;
+  const oldTitle = '[LINE][group] Support Squad (Cgroup999)';
+  const newTitle = '[LINE][group] Renamed Squad (Cgroup999)';
+  const fetchStub = installFetchStub(async (url, init = {}) => {
+    if (isLineGroupSummaryUrl(url)) {
+      return jsonResponse(200, { groupName: 'Renamed Squad' });
+    }
+
+    if (isLineProfileUrl(url)) {
+      return jsonResponse(200, { displayName: 'Alice' });
+    }
+
+    if (String(url) === issueUrl(dynamicIssueNumber) && init.method === 'GET') {
+      return jsonResponse(200, {
+        number: dynamicIssueNumber,
+        title: oldTitle,
+        html_url: dynamicIssueUrl,
+      });
+    }
+
+    if (String(url) === issueUrl(dynamicIssueNumber) && init.method === 'PATCH') {
+      const payload = JSON.parse(init.body);
+      assert.equal(payload.title, newTitle);
+      return jsonResponse(200, {
+        number: dynamicIssueNumber,
+        title: payload.title,
+        html_url: dynamicIssueUrl,
+      });
+    }
+
+    if (String(url) === issueCommentUrl(dynamicIssueNumber) && init.method === 'POST') {
+      return jsonResponse(201, {
+        id: 1904,
+        html_url: `${dynamicIssueUrl}#issuecomment-1904`,
+      });
+    }
+
+    throw new Error(`Unexpected fetch call: ${url}`);
+  });
+
+  try {
+    const ctx = createContext();
+    const mockDB = createMockD1([
+      {
+        source_key: 'group:Cgroup999',
+        status: 'ready',
+        issue_number: dynamicIssueNumber,
+        issue_url: dynamicIssueUrl,
+      },
+    ]);
+    const { env, request } = await createSignedRequest(
+      '/line/webhook',
+      {
+        events: [
+          {
+            type: 'message',
+            webhookEventId: 'event-group-dynamic-rename-1',
+            timestamp: 1_710_000_010_000,
+            source: {
+              type: 'group',
+              groupId: 'Cgroup999',
+              userId: 'Ualice',
+            },
+            message: {
+              id: '987654323',
+              type: 'text',
+              text: 'Title sync check',
+            },
+          },
+        ],
+      },
+      {
+        ISSUE_NUMBER: undefined,
+        DB: mockDB,
+      },
+    );
+
+    const response = await worker.fetch(request, env, ctx);
+    assert.equal(response.status, 200);
+
+    await Promise.all(ctx.promises);
+
+    const updateIssueCall = fetchStub.calls.find(
+      (call) => String(call.url) === issueUrl(dynamicIssueNumber) && call.init.method === 'PATCH',
+    );
+    assert.ok(updateIssueCall);
+
+    const commentCall = fetchStub.calls.find(
+      (call) => String(call.url) === issueCommentUrl(dynamicIssueNumber),
+    );
+    assert.ok(commentCall);
   } finally {
     fetchStub.restore();
   }

@@ -5,5 +5,6 @@ export {
   findIssueBySourceKey,
   getIssue,
   listIssueComments,
+  updateIssue,
   uploadFileToRepo,
 } from './github-issues-client.js';
