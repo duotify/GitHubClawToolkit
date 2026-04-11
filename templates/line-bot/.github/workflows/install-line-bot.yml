@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: duotify/GitHubClawToolkit
-          ref: fix/line-bot
+          ref: main
           path: template-source
           sparse-checkout: |
             workers/line-bot
