@@ -616,11 +616,7 @@ test('group message creates a unique source issue when ISSUE_NUMBER is omitted',
     }
 
     if (
-      [
-        repoLabelUrl('linebotworker'),
-        repoLabelUrl('line'),
-        repoLabelUrl('line:group'),
-      ].includes(String(url)) &&
+      [repoLabelUrl('linebotworker')].includes(String(url)) &&
       init.method === 'GET'
     ) {
       return notFoundResponse();
@@ -638,7 +634,7 @@ test('group message creates a unique source issue when ISSUE_NUMBER is omitted',
       assert.match(payload.body, /- Source key: group:Cgroup999/);
       assert.match(payload.body, /- Group ID: Cgroup999/);
       assert.match(payload.body, /- Source display name: Support Squad/);
-      assert.deepEqual(payload.labels, ['linebotworker', 'line', 'line:group']);
+      assert.deepEqual(payload.labels, ['linebotworker']);
 
       return jsonResponse(201, {
         number: dynamicIssueNumber,
