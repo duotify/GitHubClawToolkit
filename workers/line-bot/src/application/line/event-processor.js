@@ -1,6 +1,8 @@
 import {
   createIssue,
   createIssueComment,
+  getIssue,
+  updateIssue,
   uploadFileToRepo,
 } from '../../infrastructure/github/line-github-service.js';
 import {
@@ -144,6 +146,27 @@ async function createAndBindIssue(config, repo, sourceInfo, sourceContext) {
   };
 }
 
+async function syncSourceIssueTitle(config, repo, issueBinding, sourceInfo, sourceContext) {
+  if (
+    issueBinding.issueState === 'fixed' ||
+    issueBinding.issueState === 'created' ||
+    !Number.isInteger(issueBinding.issueNumber) ||
+    !sourceContext?.sourceDisplayName
+  ) {
+    return;
+  }
+
+  const desiredTitle = buildSourceIssueDefinition(sourceInfo, sourceContext).title;
+  const currentIssue = await getIssue(config.github, repo, issueBinding.issueNumber);
+  if (currentIssue?.title === desiredTitle) {
+    return;
+  }
+
+  await updateIssue(config.github, repo, issueBinding.issueNumber, {
+    title: desiredTitle,
+  });
+}
+
 async function persistMediaMessage(config, repo, issueNumber, event) {
   if (!issueNumber || !isMediaMessageEvent(event)) {
     return {
@@ -266,6 +289,17 @@ export async function processEvent(config, event) {
     sourceInfo,
     sourceContext,
   );
+
+  try {
+    await syncSourceIssueTitle(config, targetRepo, issueBinding, sourceInfo, sourceContext);
+  } catch (error) {
+    console.warn('Failed to sync LINE source issue title', {
+      issueNumber: issueBinding.issueNumber,
+      sourceKey: sourceInfo.key,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   let eventContext = await buildEventContext(
     config,
     targetRepo,
