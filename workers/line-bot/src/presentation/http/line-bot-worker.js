@@ -65,7 +65,8 @@ app.post('/line/webhook', async (c) => {
             webhookEventId: event?.webhookEventId,
             source: event?.source,
           });
-        })),
+        }),
+      ),
     ),
   );
 

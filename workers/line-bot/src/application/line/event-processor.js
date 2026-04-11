@@ -1,9 +1,15 @@
 import {
   createIssue,
   createIssueComment,
-  findIssueBySourceKey,
   uploadFileToRepo,
 } from '../../infrastructure/github/line-github-service.js';
+import {
+  claimSourceKey,
+  findSourceIssue,
+  bindSourceIssue,
+  deleteSourceIssue,
+  waitForSourceIssue,
+} from '../../infrastructure/d1/source-issue-store.js';
 import {
   canReplyToLineEvent,
   getLineMessageContent,
@@ -86,30 +92,54 @@ async function resolveTargetIssue(config, repo, sourceInfo, sourceContext) {
     };
   }
 
-  const existingIssue = await findIssueBySourceKey(
-    config.github,
-    repo,
-    sourceInfo.key,
-  );
+  const db = config.db;
+  if (!db) {
+    throw new Error('D1 database binding (DB) is required for dynamic issue binding.');
+  }
 
-  if (existingIssue?.number) {
+  const existing = await findSourceIssue(db, sourceInfo.key);
+  if (existing?.status === 'ready' && existing.issue_number) {
     return {
-      issueNumber: existingIssue.number,
-      issueUrl:
-        existingIssue.html_url || buildIssueUrl(repo, existingIssue.number),
+      issueNumber: existing.issue_number,
+      issueUrl: existing.issue_url || buildIssueUrl(repo, existing.issue_number),
       issueState: 'existing',
     };
   }
 
+  const inserted = await claimSourceKey(db, sourceInfo.key);
+
+  if (inserted) {
+    return await createAndBindIssue(config, repo, sourceInfo, sourceContext);
+  }
+
+  // 沒搶到鎖，等別人建好
+  const waited = await waitForSourceIssue(db, sourceInfo.key);
+
+  if (waited?.status === 'ready' && waited.issue_number) {
+    return {
+      issueNumber: waited.issue_number,
+      issueUrl: waited.issue_url || buildIssueUrl(repo, waited.issue_number),
+      issueState: 'existing',
+    };
+  }
+
+  throw new Error(`Timed out waiting for issue creation for source: ${sourceInfo.key}`);
+}
+
+async function createAndBindIssue(config, repo, sourceInfo, sourceContext) {
   const issueDefinition = buildSourceIssueDefinition(sourceInfo, sourceContext);
+
   const createdIssue = await createIssue(config.github, repo, {
     title: issueDefinition.title,
     body: issueDefinition.body,
   });
 
+  const issueUrl = createdIssue.html_url || buildIssueUrl(repo, createdIssue.number);
+  await bindSourceIssue(config.db, sourceInfo.key, createdIssue.number, issueUrl);
+
   return {
     issueNumber: createdIssue.number,
-    issueUrl: createdIssue.html_url || buildIssueUrl(repo, createdIssue.number),
+    issueUrl,
     issueState: 'created',
   };
 }
@@ -212,6 +242,11 @@ async function maybeReplyWithDefaultMessage(config, event) {
   return replyText;
 }
 
+function isIssueNotFoundError(error) {
+  const msg = error?.message || '';
+  return msg.includes('Not Found') || msg.includes('status 404') || msg.includes('status 410');
+}
+
 export async function processEvent(config, event) {
   const sourceInfo = getSourceInfo(event);
   const targetRepo = {
@@ -225,13 +260,13 @@ export async function processEvent(config, event) {
   }
 
   const sourceContext = await resolveSourceContext(config, sourceInfo);
-  const issueBinding = await resolveTargetIssue(
+  let issueBinding = await resolveTargetIssue(
     config,
     targetRepo,
     sourceInfo,
     sourceContext,
   );
-  const eventContext = await buildEventContext(
+  let eventContext = await buildEventContext(
     config,
     targetRepo,
     event,
@@ -239,14 +274,43 @@ export async function processEvent(config, event) {
     sourceContext.senderName,
   );
 
-  await maybeReplyWithDefaultMessage(config, event);
+  // LINE 回覆失敗不影響 comment 寫入
+  try {
+    await maybeReplyWithDefaultMessage(config, event);
+  } catch (error) {
+    console.warn('LINE reply failed (non-blocking)', {
+      webhookEventId: event?.webhookEventId,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
 
-  await createIssueComment(
-    config.github,
-    targetRepo,
-    issueBinding.issueNumber,
-    buildCommentBody(event, sourceInfo, eventContext),
-  );
+  try {
+    await createIssueComment(
+      config.github,
+      targetRepo,
+      issueBinding.issueNumber,
+      buildCommentBody(event, sourceInfo, eventContext),
+    );
+  } catch (error) {
+    // Issue 被刪除了 → 清除 D1 紀錄，重新建立 Issue
+    if (isIssueNotFoundError(error) && config.db) {
+      console.warn('Issue not found, clearing D1 record and retrying', {
+        issueNumber: issueBinding.issueNumber,
+        sourceKey: sourceInfo.key,
+      });
+      await deleteSourceIssue(config.db, sourceInfo.key);
+      issueBinding = await resolveTargetIssue(config, targetRepo, sourceInfo, sourceContext);
+      eventContext = await buildEventContext(config, targetRepo, event, issueBinding, sourceContext.senderName);
+      await createIssueComment(
+        config.github,
+        targetRepo,
+        issueBinding.issueNumber,
+        buildCommentBody(event, sourceInfo, eventContext),
+      );
+    } else {
+      throw error;
+    }
+  }
 
   return {
     commented: true,

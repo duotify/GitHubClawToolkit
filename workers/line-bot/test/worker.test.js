@@ -10,6 +10,62 @@ const DEFAULT_ISSUE_NUMBER = 501;
 const DEFAULT_REPO_FULL_NAME = `${DEFAULT_OWNER}/${DEFAULT_REPO}`;
 const DEFAULT_ISSUE_URL = `https://github.com/${DEFAULT_REPO_FULL_NAME}/issues/${DEFAULT_ISSUE_NUMBER}`;
 
+function createMockD1(initialRows = []) {
+  const rows = new Map();
+  for (const row of initialRows) {
+    rows.set(row.source_key, { ...row });
+  }
+
+  function createStatement(sql, params = []) {
+    return {
+      bind(...args) {
+        return createStatement(sql, args);
+      },
+      async first() {
+        const key = params[0];
+        return rows.get(key) || null;
+      },
+      async run() {
+        if (sql.startsWith('INSERT OR IGNORE')) {
+          const key = params[0];
+          if (rows.has(key)) {
+            return { meta: { changes: 0 } };
+          }
+          rows.set(key, {
+            source_key: key,
+            status: params[1],
+            issue_number: null,
+            issue_url: null,
+            created_at: params[2],
+            updated_at: params[3],
+          });
+          return { meta: { changes: 1 } };
+        }
+        if (sql.startsWith('UPDATE')) {
+          const key = params[4];
+          const row = rows.get(key);
+          if (row) {
+            row.status = params[0];
+            row.issue_number = params[1];
+            row.issue_url = params[2];
+            row.updated_at = params[3];
+          }
+          return { meta: { changes: row ? 1 : 0 } };
+        }
+        if (sql.startsWith('DELETE')) {
+          const key = params[0];
+          const had = rows.has(key);
+          rows.delete(key);
+          return { meta: { changes: had ? 1 : 0 } };
+        }
+        return { meta: { changes: 0 } };
+      },
+    };
+  }
+
+  return { prepare: (sql) => createStatement(sql) };
+}
+
 function createEnv(overrides = {}) {
   return {
     CLAW_SYS_GITHUB_TOKEN: 'github-token',
@@ -459,17 +515,6 @@ test('direct user message reuses the existing source issue when ISSUE_NUMBER is 
       return jsonResponse(200, { displayName: 'Charlie' });
     }
 
-    if (String(url).includes('/search/issues?')) {
-      return jsonResponse(200, {
-        items: [
-          {
-            number: dynamicIssueNumber,
-            html_url: dynamicIssueUrl,
-          },
-        ],
-      });
-    }
-
     if (String(url) === issueCommentUrl(dynamicIssueNumber) && init.method === 'POST') {
       return jsonResponse(201, {
         id: 1902,
@@ -482,6 +527,14 @@ test('direct user message reuses the existing source issue when ISSUE_NUMBER is 
 
   try {
     const ctx = createContext();
+    const mockDB = createMockD1([
+      {
+        source_key: 'user:Udirect123',
+        status: 'ready',
+        issue_number: dynamicIssueNumber,
+        issue_url: dynamicIssueUrl,
+      },
+    ]);
     const { env, request } = await createSignedRequest(
       '/line/webhook',
       {
@@ -504,6 +557,7 @@ test('direct user message reuses the existing source issue when ISSUE_NUMBER is 
       },
       {
         ISSUE_NUMBER: undefined,
+        DB: mockDB,
       },
     );
 
@@ -545,10 +599,6 @@ test('group message creates a unique source issue when ISSUE_NUMBER is omitted',
       return jsonResponse(200, { displayName: 'Alice' });
     }
 
-    if (String(url).includes('/search/issues?')) {
-      return jsonResponse(200, { items: [] });
-    }
-
     if (String(url) === issueCreateUrl() && init.method === 'POST') {
       const payload = JSON.parse(init.body);
       assert.match(payload.title, /^\[LINE\]\[group\] Support Squad \(Cgroup999\)$/);
@@ -575,6 +625,7 @@ test('group message creates a unique source issue when ISSUE_NUMBER is omitted',
 
   try {
     const ctx = createContext();
+    const mockDB = createMockD1();
     const { env, request } = await createSignedRequest(
       '/line/webhook',
       {
@@ -598,6 +649,7 @@ test('group message creates a unique source issue when ISSUE_NUMBER is omitted',
       },
       {
         ISSUE_NUMBER: undefined,
+        DB: mockDB,
       },
     );
 

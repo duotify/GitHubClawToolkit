@@ -1,4 +1,4 @@
-name: install-line-bot
+name: '🤖 安裝 LINE Bot'
 
 on:
   workflow_dispatch:
@@ -13,14 +13,6 @@ on:
         type: string
       line_bot_channel_id:
         description: LINE Bot Channel ID
-        required: true
-        type: string
-      line_channel_secret:
-        description: LINE Bot Channel secret
-        required: true
-        type: string
-      line_channel_access_token:
-        description: LINE Bot Channel access token
         required: true
         type: string
       line_default_reply_message:
@@ -44,6 +36,7 @@ concurrency:
 
 jobs:
   deploy:
+    name: '🤖 安裝 LINE Bot'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -51,7 +44,8 @@ jobs:
       - name: Checkout LINEBotWorker source
         uses: actions/checkout@v4
         with:
-          repository: duotify/GitHubClawSkills
+          repository: duotify/GitHubClawToolkit
+          ref: fix/line-bot
           path: template-source
           sparse-checkout: |
             workers/line-bot
@@ -89,6 +83,70 @@ jobs:
           WORKER_NAME="$(node ./scripts/resolve-worker-name.mjs "${RAW_WORKER_NAME}")"
           echo "worker_name=${WORKER_NAME}" >> "${GITHUB_OUTPUT}"
 
+      - name: 建立 D1 資料庫
+        id: d1
+        shell: bash
+        working-directory: template-source/workers/line-bot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
+        run: |
+          set -euo pipefail
+          DB_NAME="${WORKER_NAME}-db"
+
+          # 嘗試取得現有 D1 資料庫
+          EXISTING=$(bunx wrangler d1 list --json 2>/dev/null | node -e "
+            const data = require('fs').readFileSync('/dev/stdin','utf8');
+            const dbs = JSON.parse(data);
+            const found = dbs.find(d => d.name === '${DB_NAME}');
+            if (found) console.log(found.uuid);
+          " || true)
+
+          if [[ -n "${EXISTING}" ]]; then
+            echo "✅ D1 資料庫已存在: ${DB_NAME} (${EXISTING})"
+            echo "database_id=${EXISTING}" >> "${GITHUB_OUTPUT}"
+          else
+            CREATE_OUTPUT=$(bunx wrangler d1 create "${DB_NAME}" --json 2>/dev/null)
+            DB_ID=$(echo "${CREATE_OUTPUT}" | node -e "
+              const data = require('fs').readFileSync('/dev/stdin','utf8');
+              console.log(JSON.parse(data).uuid);
+            ")
+            echo "✅ D1 資料庫已建立: ${DB_NAME} (${DB_ID})"
+            echo "database_id=${DB_ID}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: 注入 D1 database_id 到 wrangler.jsonc
+        shell: bash
+        working-directory: template-source/workers/line-bot
+        env:
+          DATABASE_ID: ${{ steps.d1.outputs.database_id }}
+          WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
+        run: |
+          set -euo pipefail
+          DB_NAME="${WORKER_NAME}-db"
+          node -e "
+            const fs = require('fs');
+            let content = fs.readFileSync('wrangler.jsonc', 'utf8');
+            content = content.replace(/\"database_name\":\s*\"line-bot-db\"/, '\"database_name\": \"'+'${DB_NAME}'+'\"');
+            content = content.replace(/\"database_id\":\s*\"PLACEHOLDER\"/, '\"database_id\": \"'+'${DATABASE_ID}'+'\"');
+            fs.writeFileSync('wrangler.jsonc', content);
+          "
+
+      - name: 執行 D1 Migration
+        shell: bash
+        working-directory: template-source/workers/line-bot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DATABASE_ID: ${{ steps.d1.outputs.database_id }}
+          WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
+        run: |
+          set -euo pipefail
+          DB_NAME="${WORKER_NAME}-db"
+          bunx wrangler d1 migrations apply "${DB_NAME}" --remote --config wrangler.jsonc
+          echo "✅ D1 Migration 完成"
+
       - name: 部署 LINEBotWorker
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -96,6 +154,21 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy ${{ steps.build.outputs.bundle_path }} --config template-source/workers/line-bot/wrangler.jsonc --name ${{ steps.worker_name.outputs.worker_name }}
+
+      - name: 驗證必要 Secrets
+        shell: bash
+        env:
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          MISSING=()
+          [[ -z "${LINE_CHANNEL_SECRET}" ]] && MISSING+=("LINE_CHANNEL_SECRET")
+          [[ -z "${LINE_CHANNEL_ACCESS_TOKEN}" ]] && MISSING+=("LINE_CHANNEL_ACCESS_TOKEN")
+          if [[ ${#MISSING[@]} -gt 0 ]]; then
+            echo "::error::缺少必要的 GitHub Actions Secrets: ${MISSING[*]}（請先透過 /templates 安裝範本或手動設定）"
+            exit 1
+          fi
 
       - name: 同步 LINEBotWorker secrets
         shell: bash
@@ -107,8 +180,8 @@ jobs:
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           LINE_BOT_ID: ${{ inputs.line_bot_id }}
           LINE_CHANNEL_ID: ${{ inputs.line_bot_channel_id }}
-          LINE_CHANNEL_SECRET: ${{ inputs.line_channel_secret }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ inputs.line_channel_access_token }}
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_DEFAULT_REPLY_MESSAGE: ${{ inputs.line_default_reply_message }}
           DEFAULT_UTC_OFFSET: ${{ inputs.default_utc_offset }}
           GITHUB_OWNER: ${{ github.repository_owner }}
@@ -150,6 +223,42 @@ jobs:
           put_secret "LINE_CHANNEL_ACCESS_TOKEN" "${LINE_CHANNEL_ACCESS_TOKEN}"
           put_optional_secret "LINE_DEFAULT_REPLY_MESSAGE" "${LINE_DEFAULT_REPLY_MESSAGE}"
           put_secret "DEFAULT_UTC_OFFSET" "${DEFAULT_UTC_OFFSET}"
+
+      - name: 設定 LINE Webhook URL
+        shell: bash
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          WORKER_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          set -euo pipefail
+          WEBHOOK_URL="${WORKER_URL}/line/webhook"
+
+          HTTP_CODE=$(curl -s -o /tmp/set-webhook-response.json -w "%{http_code}" \
+            -X PUT "https://api.line.me/v2/bot/channel/webhook/endpoint" \
+            -H "Authorization: Bearer ${LINE_CHANNEL_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"endpoint\": \"${WEBHOOK_URL}\"}")
+
+          if [[ "${HTTP_CODE}" -ne 200 ]]; then
+            echo "::error::設定 LINE Webhook 失敗（HTTP ${HTTP_CODE}）"
+            cat /tmp/set-webhook-response.json || true
+            exit 1
+          fi
+          echo "✅ LINE Webhook URL 已設定: ${WEBHOOK_URL}"
+
+          VERIFY_BODY=$(curl -s -w "\n%{http_code}" \
+            -X POST "https://api.line.me/v2/bot/channel/webhook/test" \
+            -H "Authorization: Bearer ${LINE_CHANNEL_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"endpoint\": \"${WEBHOOK_URL}\"}")
+
+          VERIFY_CODE=$(echo "${VERIFY_BODY}" | tail -1)
+          if [[ "${VERIFY_CODE}" -ne 200 ]]; then
+            echo "::warning::LINE Webhook 驗證失敗（HTTP ${VERIFY_CODE}），請手動確認"
+          else
+            echo "✅ LINE Webhook 驗證成功"
+          fi
+
       - name: 寫入摘要
         shell: bash
         env:
@@ -159,6 +268,7 @@ jobs:
           WORKER_URL: ${{ steps.deploy.outputs.deployment-url }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
         run: |
+          WEBHOOK_URL="${WORKER_URL}/line/webhook"
           {
             echo "### ✅ LINEBotWorker 建立摘要"
             echo ""
@@ -166,9 +276,12 @@ jobs:
             echo "|---|---|"
             echo "| Worker 名稱 | \`${WORKER_NAME}\` |"
             echo "| Worker URL | [${WORKER_URL}](${WORKER_URL}) |"
+            echo "| LINE Webhook URL | \`${WEBHOOK_URL}\` |"
             echo "| LINE Bot ID | \`${LINE_BOT_ID}\` |"
             echo "| LINE Bot Channel ID | \`${LINE_CHANNEL_ID}\` |"
             echo "| Issue 綁定模式 | ${{ inputs.issue_number != '' && 'fixed' || 'dynamic-by-source' }} |"
             echo "| 固定 Issue | ${ISSUE_NUMBER:-_dynamic_} |"
             echo "| DEFAULT_UTC_OFFSET | ${{ inputs.default_utc_offset }} |"
+            echo ""
+            echo "> ⚠️ **請至 [LINE Developers Console](https://developers.line.biz/console/channel/${LINE_CHANNEL_ID}/messaging-api) 確認已開啟「Use webhook」開關**（LINE API 不支援自動開啟）"
           } >> "${GITHUB_STEP_SUMMARY}"

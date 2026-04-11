@@ -121,5 +121,6 @@ export function getConfig(env) {
       workerName,
     },
     assistant: createAssistantConfig(env),
+    db: env.DB || null,
   };
 }
