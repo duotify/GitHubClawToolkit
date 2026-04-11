@@ -1,6 +1,7 @@
 import {
   createIssue,
   createIssueComment,
+  ensureLabels,
   getIssue,
   updateIssue,
   uploadFileToRepo,
@@ -131,9 +132,14 @@ async function resolveTargetIssue(config, repo, sourceInfo, sourceContext) {
 async function createAndBindIssue(config, repo, sourceInfo, sourceContext) {
   const issueDefinition = buildSourceIssueDefinition(sourceInfo, sourceContext);
 
+  await ensureLabels(config.github, repo, issueDefinition.labels, {
+    description: 'Auto-created by LINEBotWorker',
+  });
+
   const createdIssue = await createIssue(config.github, repo, {
     title: issueDefinition.title,
     body: issueDefinition.body,
+    labels: issueDefinition.labels,
   });
 
   const issueUrl = createdIssue.html_url || buildIssueUrl(repo, createdIssue.number);

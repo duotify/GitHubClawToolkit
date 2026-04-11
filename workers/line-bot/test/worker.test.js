@@ -172,6 +172,14 @@ function issueWorkspacePath(fileName, issueNumber = DEFAULT_ISSUE_NUMBER) {
   return `workspaces/issue-${issueNumber}/line/${fileName}`;
 }
 
+function repoLabelUrl(name, repoFullName = DEFAULT_REPO_FULL_NAME) {
+  return `https://api.github.com/repos/${repoFullName}/labels/${encodeURIComponent(name)}`;
+}
+
+function repoLabelsUrl(repoFullName = DEFAULT_REPO_FULL_NAME) {
+  return `https://api.github.com/repos/${repoFullName}/labels`;
+}
+
 async function createSignedRequest(path, payload, envOverrides = {}) {
   const env = createEnv(envOverrides);
   const body = JSON.stringify(payload);
@@ -607,6 +615,22 @@ test('group message creates a unique source issue when ISSUE_NUMBER is omitted',
       return jsonResponse(200, { displayName: 'Alice' });
     }
 
+    if (
+      [
+        repoLabelUrl('linebotworker'),
+        repoLabelUrl('line'),
+        repoLabelUrl('line:group'),
+      ].includes(String(url)) &&
+      init.method === 'GET'
+    ) {
+      return notFoundResponse();
+    }
+
+    if (String(url) === repoLabelsUrl() && init.method === 'POST') {
+      const payload = JSON.parse(init.body);
+      return jsonResponse(201, payload);
+    }
+
     if (String(url) === issueCreateUrl() && init.method === 'POST') {
       const payload = JSON.parse(init.body);
       assert.match(payload.title, /^\[LINE\]\[group\] Support Squad \(Cgroup999\)$/);
@@ -614,6 +638,7 @@ test('group message creates a unique source issue when ISSUE_NUMBER is omitted',
       assert.match(payload.body, /- Source key: group:Cgroup999/);
       assert.match(payload.body, /- Group ID: Cgroup999/);
       assert.match(payload.body, /- Source display name: Support Squad/);
+      assert.deepEqual(payload.labels, ['linebotworker', 'line', 'line:group']);
 
       return jsonResponse(201, {
         number: dynamicIssueNumber,

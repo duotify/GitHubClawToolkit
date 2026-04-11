@@ -8,12 +8,12 @@ on:
         required: false
         type: string
       line_bot_id:
-        description: LINE Bot ID
-        required: true
+        description: LINE Bot ID（未填時沿用 repo variable）
+        required: false
         type: string
       line_bot_channel_id:
-        description: LINE Bot Channel ID
-        required: true
+        description: LINE Bot Channel ID（未填時沿用 repo variable）
+        required: false
         type: string
       line_default_reply_message:
         description: LINE Bot 預設回應訊息
@@ -25,10 +25,12 @@ on:
         default: "+08:00"
         type: string
 
-run-name: "🚀 安裝 LINEBotWorker - ${{ inputs.line_bot_id }}"
+run-name: "🚀 安裝 LINEBotWorker - ${{ inputs.line_bot_id || vars.LINE_BOT_ID || 'line-bot' }}"
 
 permissions:
+  actions: write
   contents: read
+  issues: write
 
 concurrency:
   group: install-line-bot-${{ github.repository }}
@@ -170,6 +172,89 @@ jobs:
             exit 1
           fi
 
+      - name: 解析 LINE Bot 設定
+        id: resolve_line_config
+        shell: bash
+        env:
+          INPUT_LINE_BOT_ID: ${{ inputs.line_bot_id }}
+          INPUT_LINE_CHANNEL_ID: ${{ inputs.line_bot_channel_id }}
+          INPUT_LINE_DEFAULT_REPLY_MESSAGE: ${{ inputs.line_default_reply_message }}
+          INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          VAR_LINE_BOT_ID: ${{ vars.LINE_BOT_ID }}
+          VAR_LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
+        run: |
+          set -euo pipefail
+
+          resolve_required() {
+            local input_value="$1"
+            local fallback_value="$2"
+            local key="$3"
+            local value="${input_value}"
+            if [[ -z "${value}" ]]; then
+              value="${fallback_value}"
+            fi
+            if [[ -z "${value}" ]]; then
+              echo "::error::${key} 缺少值，請在部署時輸入或先寫入 repo variable"
+              exit 1
+            fi
+            printf '%s' "${value}"
+          }
+
+          LINE_BOT_ID="$(resolve_required "${INPUT_LINE_BOT_ID}" "${VAR_LINE_BOT_ID}" "LINE_BOT_ID")"
+          LINE_CHANNEL_ID="$(resolve_required "${INPUT_LINE_CHANNEL_ID}" "${VAR_LINE_CHANNEL_ID}" "LINE_CHANNEL_ID")"
+
+          {
+            echo "line_bot_id=${LINE_BOT_ID}"
+            echo "line_channel_id=${LINE_CHANNEL_ID}"
+            echo "issue_number=${INPUT_ISSUE_NUMBER}"
+            echo 'line_default_reply_message<<EOF'
+            printf '%s\n' "${INPUT_LINE_DEFAULT_REPLY_MESSAGE}"
+            echo 'EOF'
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: 同步 LINE Bot 設定到 GitHub Variables
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CLAW_SYS_GITHUB_TOKEN || github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const variables = {
+              LINE_BOT_ID: `${{ steps.resolve_line_config.outputs.line_bot_id }}`,
+              LINE_CHANNEL_ID: `${{ steps.resolve_line_config.outputs.line_channel_id }}`,
+            };
+
+            for (const [name, value] of Object.entries(variables)) {
+              try {
+                await github.rest.actions.updateRepoVariable({ owner, repo, name, value });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.actions.createRepoVariable({ owner, repo, name, value });
+              }
+            }
+
+      - name: 建立 linebotworker label
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CLAW_SYS_GITHUB_TOKEN || github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const name = 'linebotworker';
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name,
+                color: '1D76DB',
+                description: 'Issues created by LINEBotWorker',
+              });
+            }
+
       - name: 同步 LINEBotWorker secrets
         shell: bash
         working-directory: template-source/workers/line-bot
@@ -177,12 +262,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
-          ISSUE_NUMBER: ${{ inputs.issue_number }}
-          LINE_BOT_ID: ${{ inputs.line_bot_id }}
-          LINE_CHANNEL_ID: ${{ inputs.line_bot_channel_id }}
+          ISSUE_NUMBER: ${{ steps.resolve_line_config.outputs.issue_number }}
+          LINE_BOT_ID: ${{ steps.resolve_line_config.outputs.line_bot_id }}
+          LINE_CHANNEL_ID: ${{ steps.resolve_line_config.outputs.line_channel_id }}
           LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-          LINE_DEFAULT_REPLY_MESSAGE: ${{ inputs.line_default_reply_message }}
+          LINE_DEFAULT_REPLY_MESSAGE: ${{ steps.resolve_line_config.outputs.line_default_reply_message }}
           DEFAULT_UTC_OFFSET: ${{ inputs.default_utc_offset }}
           GITHUB_OWNER: ${{ github.repository_owner }}
           GITHUB_REPO: ${{ github.event.repository.name }}
@@ -263,10 +348,10 @@ jobs:
         shell: bash
         env:
           WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
-          LINE_BOT_ID: ${{ inputs.line_bot_id }}
-          LINE_CHANNEL_ID: ${{ inputs.line_bot_channel_id }}
+          LINE_BOT_ID: ${{ steps.resolve_line_config.outputs.line_bot_id }}
+          LINE_CHANNEL_ID: ${{ steps.resolve_line_config.outputs.line_channel_id }}
           WORKER_URL: ${{ steps.deploy.outputs.deployment-url }}
-          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          ISSUE_NUMBER: ${{ steps.resolve_line_config.outputs.issue_number }}
         run: |
           WEBHOOK_URL="${WORKER_URL}/line/webhook"
           {
@@ -279,7 +364,7 @@ jobs:
             echo "| LINE Webhook URL | \`${WEBHOOK_URL}\` |"
             echo "| LINE Bot ID | \`${LINE_BOT_ID}\` |"
             echo "| LINE Bot Channel ID | \`${LINE_CHANNEL_ID}\` |"
-            echo "| Issue 綁定模式 | ${{ inputs.issue_number != '' && 'fixed' || 'dynamic-by-source' }} |"
+            echo "| Issue 綁定模式 | ${{ steps.resolve_line_config.outputs.issue_number != '' && 'fixed' || 'dynamic-by-source' }} |"
             echo "| 固定 Issue | ${ISSUE_NUMBER:-_dynamic_} |"
             echo "| DEFAULT_UTC_OFFSET | ${{ inputs.default_utc_offset }} |"
             echo ""

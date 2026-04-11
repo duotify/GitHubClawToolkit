@@ -49,6 +49,7 @@ export function buildSourceIssueDefinition(sourceInfo, context = {}) {
       'Reinstalling the worker should reuse this issue when the source key matches.',
     ].filter(Boolean).join('\n'),
     labels: [
+      'linebotworker',
       'line',
       `line:${sourceInfo.type || 'unknown'}`,
     ],
