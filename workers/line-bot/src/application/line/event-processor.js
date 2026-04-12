@@ -132,15 +132,21 @@ async function resolveTargetIssue(config, repo, sourceInfo, sourceContext) {
 async function createAndBindIssue(config, repo, sourceInfo, sourceContext) {
   const issueDefinition = buildSourceIssueDefinition(sourceInfo, sourceContext);
 
-  await ensureLabels(config.github, repo, issueDefinition.labels, {
-    description: 'Auto-created by LINEBotWorker',
-  });
+  let createdIssue;
+  try {
+    await ensureLabels(config.github, repo, issueDefinition.labels, {
+      description: 'Auto-created by LINEBotWorker',
+    });
 
-  const createdIssue = await createIssue(config.github, repo, {
-    title: issueDefinition.title,
-    body: issueDefinition.body,
-    labels: issueDefinition.labels,
-  });
+    createdIssue = await createIssue(config.github, repo, {
+      title: issueDefinition.title,
+      body: issueDefinition.body,
+      labels: issueDefinition.labels,
+    });
+  } catch (error) {
+    await deleteSourceIssue(config.db, sourceInfo.key);
+    throw error;
+  }
 
   const issueUrl = createdIssue.html_url || buildIssueUrl(repo, createdIssue.number);
   await bindSourceIssue(config.db, sourceInfo.key, createdIssue.number, issueUrl);
@@ -272,8 +278,11 @@ async function maybeReplyWithDefaultMessage(config, event) {
 }
 
 function isIssueNotFoundError(error) {
+  const status = error?.status ?? error?.statusCode ?? error?.response?.status;
+  if (status === 404 || status === 410) return true;
+
   const msg = error?.message || '';
-  return msg.includes('Not Found') || msg.includes('status 404') || msg.includes('status 410');
+  return msg.includes('Not Found') || msg.includes('Gone') || msg.includes('status 404') || msg.includes('status 410');
 }
 
 export async function processEvent(config, event) {
