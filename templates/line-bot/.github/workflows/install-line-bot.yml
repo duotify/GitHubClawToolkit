@@ -1,4 +1,4 @@
-name: '🤖 安裝 LINE Bot'
+name: '🤖 安裝 LINE Bot Worker'
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ on:
         default: "+08:00"
         type: string
 
-run-name: "🚀 安裝 LINEBotWorker - ${{ inputs.line_bot_id }}"
+run-name: "🚀 安裝 LINE Bot Worker - ${{ inputs.line_bot_id }}"
 
 permissions:
   contents: read
@@ -37,11 +37,29 @@ concurrency:
 
 jobs:
   deploy:
-    name: '🤖 安裝 LINE Bot'
+    name: '🤖 安裝 LINE Bot Worker'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
     steps:
+      - name: 驗證必要 Secrets
+        shell: bash
+        env:
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          MISSING=()
+          [[ -z "${LINE_CHANNEL_SECRET}" ]] && MISSING+=("LINE_CHANNEL_SECRET")
+          [[ -z "${LINE_CHANNEL_ACCESS_TOKEN}" ]] && MISSING+=("LINE_CHANNEL_ACCESS_TOKEN")
+          if [[ ${#MISSING[@]} -gt 0 ]]; then
+            echo "::error::缺少必要的 GitHub Actions Secrets: ${MISSING[*]}（請先透過 /templates 安裝範本或手動設定）"
+            exit 1
+          fi
+
       - name: Checkout LINEBotWorker source
         uses: actions/checkout@v4
         with:
@@ -88,13 +106,9 @@ jobs:
         id: d1
         shell: bash
         working-directory: template-source/workers/line-bot
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
         run: |
           set -euo pipefail
-          DB_NAME="${WORKER_NAME}-db"
+          DB_NAME="${{ steps.worker_name.outputs.worker_name }}-db"
 
           # 嘗試取得現有 D1 資料庫
           EXISTING=$(bunx wrangler d1 list --json 2>/dev/null | node -e "
@@ -120,31 +134,19 @@ jobs:
       - name: 注入 D1 database_id 到 wrangler.jsonc
         shell: bash
         working-directory: template-source/workers/line-bot
-        env:
-          DATABASE_ID: ${{ steps.d1.outputs.database_id }}
-          WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
         run: |
           set -euo pipefail
-          DB_NAME="${WORKER_NAME}-db"
-          node -e "
-            const fs = require('fs');
-            let content = fs.readFileSync('wrangler.jsonc', 'utf8');
-            content = content.replace(/\"database_name\":\s*\"line-bot-db\"/, '\"database_name\": \"'+'${DB_NAME}'+'\"');
-            content = content.replace(/\"database_id\":\s*\"PLACEHOLDER\"/, '\"database_id\": \"'+'${DATABASE_ID}'+'\"');
-            fs.writeFileSync('wrangler.jsonc', content);
-          "
+          DB_NAME="${{ steps.worker_name.outputs.worker_name }}-db"
+          DATABASE_ID="${{ steps.d1.outputs.database_id }}"
+          sed -i "s|\"database_name\": \"line-bot-db\"|\"database_name\": \"${DB_NAME}\"|" wrangler.jsonc
+          sed -i "s|\"database_id\": \"PLACEHOLDER\"|\"database_id\": \"${DATABASE_ID}\"|" wrangler.jsonc
 
       - name: 執行 D1 Migration
         shell: bash
         working-directory: template-source/workers/line-bot
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DATABASE_ID: ${{ steps.d1.outputs.database_id }}
-          WORKER_NAME: ${{ steps.worker_name.outputs.worker_name }}
         run: |
           set -euo pipefail
-          DB_NAME="${WORKER_NAME}-db"
+          DB_NAME="${{ steps.worker_name.outputs.worker_name }}-db"
           bunx wrangler d1 migrations apply "${DB_NAME}" --remote --config wrangler.jsonc
           echo "✅ D1 Migration 完成"
 
@@ -155,21 +157,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy ${{ steps.build.outputs.bundle_path }} --config template-source/workers/line-bot/wrangler.jsonc --name ${{ steps.worker_name.outputs.worker_name }}
-
-      - name: 驗證必要 Secrets
-        shell: bash
-        env:
-          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
-          MISSING=()
-          [[ -z "${LINE_CHANNEL_SECRET}" ]] && MISSING+=("LINE_CHANNEL_SECRET")
-          [[ -z "${LINE_CHANNEL_ACCESS_TOKEN}" ]] && MISSING+=("LINE_CHANNEL_ACCESS_TOKEN")
-          if [[ ${#MISSING[@]} -gt 0 ]]; then
-            echo "::error::缺少必要的 GitHub Actions Secrets: ${MISSING[*]}（請先透過 /templates 安裝範本或手動設定）"
-            exit 1
-          fi
 
       - name: 建立 linebotworker label
         uses: actions/github-script@v7
@@ -188,7 +175,7 @@ jobs:
                 owner,
                 repo,
                 name,
-                color: '1D76DB',
+                color: '06C755',
                 description: 'Issues created by LINEBotWorker',
               });
             }
