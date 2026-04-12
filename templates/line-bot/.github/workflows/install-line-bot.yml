@@ -110,26 +110,29 @@ jobs:
           set -euo pipefail
           DB_NAME="${{ steps.worker_name.outputs.worker_name }}-db"
 
-          # 嘗試取得現有 D1 資料庫
-          EXISTING=$(bunx wrangler d1 list --json 2>/dev/null | node -e "
-            const data = require('fs').readFileSync('/dev/stdin','utf8');
-            const dbs = JSON.parse(data);
-            const found = dbs.find(d => d.name === '${DB_NAME}');
-            if (found) console.log(found.uuid);
-          " || true)
+          # 用 d1 list --json 查詢指定名稱的 database uuid
+          get_db_id() {
+            bunx wrangler d1 list --json | node -e "
+              const dbs = JSON.parse(require('fs').readFileSync(0,'utf8'));
+              const f = dbs.find(d => d.name === process.argv[1]);
+              if (f) process.stdout.write(f.uuid);
+            " "$1"
+          }
 
-          if [[ -n "${EXISTING}" ]]; then
-            echo "✅ D1 資料庫已存在: ${DB_NAME} (${EXISTING})"
-            echo "database_id=${EXISTING}" >> "${GITHUB_OUTPUT}"
-          else
-            CREATE_OUTPUT=$(bunx wrangler d1 create "${DB_NAME}" --json 2>/dev/null)
-            DB_ID=$(echo "${CREATE_OUTPUT}" | node -e "
-              const data = require('fs').readFileSync('/dev/stdin','utf8');
-              console.log(JSON.parse(data).uuid);
-            ")
-            echo "✅ D1 資料庫已建立: ${DB_NAME} (${DB_ID})"
-            echo "database_id=${DB_ID}" >> "${GITHUB_OUTPUT}"
+          DB_ID="$(get_db_id "${DB_NAME}")"
+
+          if [[ -z "${DB_ID}" ]]; then
+            bunx wrangler d1 create "${DB_NAME}"
+            DB_ID="$(get_db_id "${DB_NAME}")"
           fi
+
+          if [[ -z "${DB_ID}" ]]; then
+            echo "::error::無法取得 D1 資料庫 UUID: ${DB_NAME}"
+            exit 1
+          fi
+
+          echo "✅ D1 資料庫: ${DB_NAME} (${DB_ID})"
+          echo "database_id=${DB_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: 注入 D1 database_id 到 wrangler.jsonc
         shell: bash
