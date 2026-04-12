@@ -1313,6 +1313,75 @@ test('worker uses configured default reply message for replyable events', async 
   }
 });
 
+test('worker still comments when the default LINE reply fails', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+
+  const fetchStub = installFetchStub(async (url, init = {}) => {
+    if (isLineProfileUrl(url)) {
+      return jsonResponse(200, { displayName: 'Reply Failure User' });
+    }
+
+    if (isLineReplyUrl(url)) {
+      return jsonResponse(500, { message: 'Reply delivery failed' });
+    }
+
+    if (String(url) === issueCommentUrl() && init.method === 'POST') {
+      return jsonResponse(201, {
+        id: 911,
+        html_url: `${DEFAULT_ISSUE_URL}#issuecomment-911`,
+      });
+    }
+
+    throw new Error(`Unexpected fetch call: ${url}`);
+  });
+
+  try {
+    const ctx = createContext();
+    const { env, request } = await createSignedRequest(
+      '/line/webhook',
+      {
+        events: [
+          {
+            type: 'message',
+            webhookEventId: 'event-canned-failure-1',
+            timestamp: Date.now(),
+            replyToken: 'reply-token-canned-failure-1',
+            source: {
+              type: 'user',
+              userId: 'Ucanned-failure-1',
+            },
+            message: {
+              id: 'canned-msg-failure-1',
+              type: 'text',
+              text: 'reply should fail but comment should still be created',
+            },
+          },
+        ],
+      },
+      {
+        LINE_DEFAULT_REPLY_MESSAGE: '這是失敗測試用的預設回應',
+      },
+    );
+
+    const response = await worker.fetch(request, env, ctx);
+    assert.equal(response.status, 200);
+
+    await Promise.all(ctx.promises);
+
+    const replyCall = fetchStub.calls.find((call) => isLineReplyUrl(call.url));
+    assert.ok(replyCall);
+
+    const commentCall = fetchStub.calls.find(
+      (call) => String(call.url) === issueCommentUrl(),
+    );
+    assert.ok(commentCall);
+  } finally {
+    fetchStub.restore();
+    console.warn = originalWarn;
+  }
+});
+
 test('image upload permission error becomes a readable comment on the fixed issue', async () => {
   const fetchStub = installFetchStub(async (url, init = {}) => {
     if (isLineProfileUrl(url)) {
