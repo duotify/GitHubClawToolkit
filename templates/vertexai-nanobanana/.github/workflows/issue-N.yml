@@ -149,20 +149,20 @@ jobs:
       # 推送結果到 issue branch。
       - name: 推送結果
         if: always()
-        uses: duotify/GitHubClawToolkit/actions/commit-push-issue-branch-action@v1.1.3
+        uses: duotify/GitHubClawToolkit/actions/commit-push-issue-branch-action@v1.1.4
         with:
           issue_number: ${{ env.ISSUE_NUMBER }}
 
       - name: 任務失敗處理
         if: failure() && steps.generate.conclusion == 'failure'
-        uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.3
+        uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.4
         with:
           output_file: "artifacts/${{ env.COMMENT_ID }}/output.txt"
           result_file: "artifacts/${{ env.COMMENT_ID }}/result.md"
 
       - name: 執行結果回報
         if: always()
-        uses: duotify/GitHubClawToolkit/actions/update-comment-action@v1.1.3
+        uses: duotify/GitHubClawToolkit/actions/update-comment-action@v1.1.4
         with:
           issue_number: ${{ env.ISSUE_NUMBER }}
           comment_id: ${{ env.COMMENT_ID }}
