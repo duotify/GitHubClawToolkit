@@ -43,7 +43,7 @@ on:
     types: [coding-agent]
 
 # Actions UI 上顯示的執行名稱，會把 issue 編號直接帶進來，方便辨識。
-run-name: "🤖 Gemini 執行任務 Issue #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+run-name: "🦞 執行小龍蝦 Issue #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
 
 # 避免同一個 repo + issue 同時有多個 agent 執行互相覆蓋。
 concurrency:

@@ -1,6 +1,6 @@
 # 這個 workflow 會接手指定 issue，執行 Copilot CLI，並把結果回寫到 issue comment 與 issue branch。
 # 注意：整個流程直接跑在 GitHub Actions runner 上，這份 YAML 本身沒有使用 Docker container。
-name: '執行小龍蝦任務 #N'
+name: '🦞 執行小龍蝦任務 #N'
 
 # 支援兩種觸發方式：
 # 1. workflow_dispatch：從 GitHub Actions UI 手動填參數後執行
@@ -43,7 +43,7 @@ on:
     types: [coding-agent]
 
 # Actions UI 上顯示的執行名稱，會把 issue 編號直接帶進來，方便辨識。
-run-name: "🤖 Run Issue #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+run-name: "🦞 執行小龍蝦 #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
 
 # 避免同一個 repo + issue 同時有多個 agent 執行互相覆蓋。
 concurrency:
@@ -87,7 +87,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-
 
       - name: 狀態更新處理
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
@@ -146,7 +145,7 @@ jobs:
 
           npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.27' }} \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
-            --yolo --stream off --continue --output-format json \
+            --yolo --stream off --output-format json \
             > "artifacts/${COMMENT_ID}/output.jsonl" \
             2> "artifacts/${COMMENT_ID}/error.log"
 
