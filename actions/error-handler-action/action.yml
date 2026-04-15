@@ -115,13 +115,20 @@ runs:
             log("::group::📄 session.error 訊息內容");
             log(message);
             log("::endgroup::");
+          } else if (content.trim()) {
+            log("::notice::未在輸出中找到 session.error 訊息，將直接使用輸出檔內容作為錯誤訊息");
           } else {
-            log("::notice::未在輸出中找到 session.error 訊息，將使用 fallback 訊息");
+            log("::notice::未在輸出中找到 session.error 訊息且輸出檔為空，將使用 fallback 訊息");
           }
 
-          const resultContent = message
-            ? `${messagePrefix}\n\n${message}\n\n${messageSuffix}\n`
-            : `${missingSessionErrorMessage}\n`;
+          let resultContent;
+          if (message) {
+            resultContent = `${messagePrefix}\n\n${message}\n\n${messageSuffix}\n`;
+          } else if (content.trim()) {
+            resultContent = `${messagePrefix}\n\n\`\`\`\n${content.trim()}\n\`\`\`\n\n${messageSuffix}\n`;
+          } else {
+            resultContent = `${missingSessionErrorMessage}\n`;
+          }
 
           fs.writeFileSync(resultFile, resultContent);
           log(`結果已寫入：${resultFile}`);
