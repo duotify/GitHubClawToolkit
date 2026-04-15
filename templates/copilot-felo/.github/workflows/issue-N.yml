@@ -91,7 +91,7 @@ jobs:
 
       # 安裝 GitHub Copilot CLI
       - name: Install GitHub Copilot CLI
-        run: npm install -g @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.18' }}
+        run: npm install -g @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.27' }}
 
       - name: 狀態更新處理
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
@@ -156,7 +156,7 @@ jobs:
 
           USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
 
-          npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.18' }} \
+          npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.27' }} \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
             --yolo --stream off --continue --output-format json \
             > "artifacts/${COMMENT_ID}/output.jsonl" \
