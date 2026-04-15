@@ -169,7 +169,7 @@ function issueContentUrl(path, repoFullName = DEFAULT_REPO_FULL_NAME) {
 }
 
 function issueWorkspacePath(fileName, issueNumber = DEFAULT_ISSUE_NUMBER) {
-  return `workspaces/issue-${issueNumber}/line/${fileName}`;
+  return `line/${fileName}`;
 }
 
 function repoLabelUrl(name, repoFullName = DEFAULT_REPO_FULL_NAME) {
@@ -221,7 +221,7 @@ function createArtifactUploadResponder({
   path,
   commitMessage,
   putResponsePath = path,
-  baseSha = `main-sha-${issueNumber}`,
+  baseSha = `orphan-sha-${issueNumber}`,
 }) {
   return (url, init = {}) => {
     const requestUrl = String(url);
@@ -230,18 +230,25 @@ function createArtifactUploadResponder({
       return notFoundResponse();
     }
 
-    if (requestUrl === repositoryUrl(repoFullName)) {
-      return jsonResponse(200, { default_branch: 'main' });
+    // orphan branch creation: createTree
+    if (
+      requestUrl === `${repositoryUrl(repoFullName)}/git/trees` &&
+      init.method === 'POST'
+    ) {
+      return jsonResponse(201, { sha: `tree-sha-${issueNumber}` });
     }
 
-    if (requestUrl === defaultBranchRefUrl(repoFullName)) {
-      return jsonResponse(200, {
-        object: {
-          sha: baseSha,
-        },
-      });
+    // orphan branch creation: createCommit (parents: [])
+    if (
+      requestUrl === `${repositoryUrl(repoFullName)}/git/commits` &&
+      init.method === 'POST'
+    ) {
+      const payload = JSON.parse(init.body);
+      assert.deepStrictEqual(payload.parents, []);
+      return jsonResponse(201, { sha: baseSha });
     }
 
+    // orphan branch creation: createRef
     if (
       requestUrl === `${repositoryUrl(repoFullName)}/git/refs` &&
       init.method === 'POST'
@@ -919,15 +926,15 @@ test('image message uploads media to the fixed issue branch and comments with pr
     assert.match(commentPayload.body, /- Issue branch: `issue-501`/);
     assert.match(
       commentPayload.body,
-      /- Repo path: `workspaces\/issue-501\/line\/image-55\.png`/,
+      /- Repo path: `line\/image-55\.png`/,
     );
     assert.match(
       commentPayload.body,
-      /blob\/issue-501\/workspaces\/issue-501\/line\/image-55\.png\?raw=true/,
+      /blob\/issue-501\/line\/image-55\.png\?raw=true/,
     );
     assert.match(
       commentPayload.body,
-      /!\[image-55\.png\]\(https:\/\/github\.com\/octo\/fallback\/blob\/issue-501\/workspaces\/issue-501\/line\/image-55\.png\?raw=true\)/,
+      /!\[image-55\.png\]\(https:\/\/github\.com\/octo\/fallback\/blob\/issue-501\/line\/image-55\.png\?raw=true\)/,
     );
 
     const uploadCall = fetchStub.calls.find(
@@ -1012,7 +1019,7 @@ test('audio, video, and file uploads use the fixed issue branch and comment on t
       assert.match(commentPayload.body, /Issue branch: `issue-501`/);
       assert.match(
         commentPayload.body,
-        /Repo path: `workspaces\/issue-501\/line\/audio-1\.mp3`/,
+        /Repo path: `line\/audio-1\.mp3`/,
       );
     } finally {
       fetchStub.restore();
@@ -1088,11 +1095,11 @@ test('audio, video, and file uploads use the fixed issue branch and comment on t
       assert.match(commentPayload.body, /Issue branch: `issue-501`/);
       assert.match(
         commentPayload.body,
-        /Repo path: `workspaces\/issue-501\/line\/video-1\.mp4`/,
+        /Repo path: `line\/video-1\.mp4`/,
       );
       assert.match(
         commentPayload.body,
-        /<video src="https:\/\/github\.com\/octo\/fallback\/blob\/issue-501\/workspaces\/issue-501\/line\/video-1\.mp4\?raw=true"/,
+        /<video src="https:\/\/github\.com\/octo\/fallback\/blob\/issue-501\/line\/video-1\.mp4\?raw=true"/,
       );
     } finally {
       fetchStub.restore();
@@ -1164,7 +1171,7 @@ test('audio, video, and file uploads use the fixed issue branch and comment on t
       assert.match(commentPayload.body, /Issue branch: `issue-501`/);
       assert.match(
         commentPayload.body,
-        /Repo path: `workspaces\/issue-501\/line\/file-1\.txt`/,
+        /Repo path: `line\/file-1\.txt`/,
       );
     } finally {
       textFetchStub.restore();
@@ -1238,7 +1245,7 @@ test('audio, video, and file uploads use the fixed issue branch and comment on t
       assert.match(commentPayload.body, /Stored file: \[meeting-notes\.docx\]/);
       assert.match(
         commentPayload.body,
-        /Repo path: `workspaces\/issue-501\/line\/word-1\.docx`/,
+        /Repo path: `line\/word-1\.docx`/,
       );
       assert.match(commentPayload.body, /Issue branch: `issue-501`/);
     } finally {
@@ -1396,16 +1403,20 @@ test('image upload permission error becomes a readable comment on the fixed issu
       return notFoundResponse();
     }
 
-    if (String(url) === repositoryUrl()) {
-      return jsonResponse(200, { default_branch: 'main' });
+    // orphan branch creation: createTree
+    if (
+      String(url) === `${repositoryUrl()}/git/trees` &&
+      init.method === 'POST'
+    ) {
+      return jsonResponse(201, { sha: 'tree-sha-orphan' });
     }
 
-    if (String(url) === defaultBranchRefUrl()) {
-      return jsonResponse(200, {
-        object: {
-          sha: 'main-sha-99',
-        },
-      });
+    // orphan branch creation: createCommit (parents: [])
+    if (
+      String(url) === `${repositoryUrl()}/git/commits` &&
+      init.method === 'POST'
+    ) {
+      return jsonResponse(201, { sha: 'orphan-sha-99' });
     }
 
     if (
@@ -1415,7 +1426,7 @@ test('image upload permission error becomes a readable comment on the fixed issu
       return jsonResponse(201, {
         ref: 'refs/heads/issue-501',
         object: {
-          sha: 'main-sha-99',
+          sha: 'orphan-sha-99',
         },
       });
     }

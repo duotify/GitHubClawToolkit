@@ -250,6 +250,32 @@ export async function ensureLabels(config, repo, labels, options = {}) {
   }
 }
 
+async function createOrphanBranch(config, repo, branch) {
+  const repoPath = `/repos/${repo.owner}/${repo.repo}`;
+
+  // 1. 建立空 tree（含 .gitkeep 以避免完全空的 tree）
+  const tree = await githubRequest(config, `${repoPath}/git/trees`, {
+    method: 'POST',
+    body: JSON.stringify({
+      tree: [{ path: '.gitkeep', mode: '100644', type: 'blob', content: '' }],
+    }),
+  });
+
+  // 2. 建立 orphan commit（parents: [] 是關鍵）
+  const commit = await githubRequest(config, `${repoPath}/git/commits`, {
+    method: 'POST',
+    body: JSON.stringify({
+      message: `chore: initialize orphan branch ${branch}`,
+      tree: tree.sha,
+      parents: [],
+    }),
+  });
+
+  // 3. 建立 ref 指向 orphan commit
+  await createRef(config, repo, `heads/${branch}`, commit.sha);
+  return commit.sha;
+}
+
 export async function ensureArtifactBranch(config, repo, branch) {
   const refName = `heads/${branch}`;
   const existing = await getRef(config, repo, refName);
@@ -257,21 +283,7 @@ export async function ensureArtifactBranch(config, repo, branch) {
     return existing.object.sha;
   }
 
-  const repository = await getRepository(config, repo);
-  const defaultBranch = repository?.default_branch;
-  if (typeof defaultBranch !== 'string' || defaultBranch.trim() === '') {
-    throw new Error(
-      'Unable to determine repository default branch for artifact upload.',
-    );
-  }
-
-  const baseRef = await getRef(config, repo, `heads/${defaultBranch}`);
-  if (!baseRef?.object?.sha) {
-    throw new Error(`Unable to resolve base branch SHA for ${defaultBranch}.`);
-  }
-
-  await createRef(config, repo, refName, baseRef.object.sha);
-  return baseRef.object.sha;
+  return createOrphanBranch(config, repo, branch);
 }
 
 export async function findIssueBySourceKey(

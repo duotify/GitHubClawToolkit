@@ -87,6 +87,6 @@ export function isIgnoredEvent(event) {
 export function buildIssueArtifactScope(config, issueNumber) {
   return {
     branch: `issue-${issueNumber}`,
-    directory: `workspaces/issue-${issueNumber}/line`,
+    directory: 'line',
   };
 }
