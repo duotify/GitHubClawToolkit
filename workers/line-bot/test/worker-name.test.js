@@ -9,7 +9,7 @@ import {
 test('normalizeCloudflareWorkerName replaces invalid characters and trims edge dashes', () => {
   const result = normalizeCloudflareWorkerName('  Repo.Name__v2  ');
 
-  assert.equal(result.normalizedValue, 'Repo-Name-v2');
+  assert.equal(result.normalizedValue, 'repo-name-v2');
   assert.equal(result.changed, true);
   assert.deepEqual(result.errors, []);
 });

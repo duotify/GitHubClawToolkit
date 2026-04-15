@@ -1,6 +1,6 @@
 const WORKERS_DEV_MAX_NAME_LENGTH = 63;
 const GENERAL_MAX_NAME_LENGTH = 255;
-const ALLOWED_WORKER_NAME_PATTERN = /^[A-Za-z0-9-]+$/;
+const ALLOWED_WORKER_NAME_PATTERN = /^[a-z0-9-]+$/;
 
 function sanitizeCloudflareWorkerName(rawValue) {
   if (typeof rawValue !== 'string') {
@@ -9,7 +9,8 @@ function sanitizeCloudflareWorkerName(rawValue) {
 
   return rawValue
     .trim()
-    .replace(/[^A-Za-z0-9-]+/g, '-')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
