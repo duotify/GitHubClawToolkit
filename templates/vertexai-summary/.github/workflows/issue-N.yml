@@ -3,7 +3,7 @@
 # 生成 Markdown 摘要並 commit 到 issue branch，最後回寫 issue comment。
 #
 # 認證模式：僅支援 Vertex AI API Key（VERTEXAI_SUMMARY_API_KEY secret）。
-name: "執行小龍蝦任務 #N"
+name: "🦞 執行小龍蝦任務 #N"
 
 on:
   workflow_dispatch:
