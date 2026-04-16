@@ -20,12 +20,39 @@
 ### 2.1 指令來源
 * 主要依據：本次 Copilot CLI 啟動時傳入的提示詞（即 `artifacts/${USER_COMMENT_ID}/user.md` 的內容，已由系統注入為 `-p` 參數）。
 
-### 2.2 指令不完整時的追溯
-依序補足，不可跳步：
-1. 執行 `node .github/scripts/find_memory.js --limit 20` 取得歷史對話上下文（`--limit N` 可調整筆數，記憶來源為 `issue.jsonl`）。
-2. 讀取小龍蝦工作區其他檔案，且優先查閱 `$REPO_ROOT/.memory`。
+### 2.2 聊天記錄來源（重要）
+執行前，**優先讀取 `$REPO_ROOT/chat-log.md`** 取得完整聊天脈絡。此檔案是由 workflow 預先整理好的乾淨聊天記錄，格式如下：
 
-### 2.3 排除來源
+```
+[2024-01-15 18:30 UTC+8] **張小明**
+
+這是文字訊息內容
+
+---
+
+[2024-01-15 18:31 UTC+8] **張小明**
+
+![image_xxx.jpg](https://raw.githubusercontent.com/...)
+
+---
+```
+
+* 每則訊息已依時間排序。
+* 圖片以 `![檔名](url)` inline markdown 表示，直接可用。
+* 語音為 `🎵 [檔名](url)`，影片為 `🎬 [檔名](url)`，檔案為 `📎 [檔名](url)`。
+* **不需要自行解析 Raw event snapshot**；`chat-log.md` 已是整理後結果。
+
+若 `chat-log.md` 不存在（尚未執行 build-chat-log.js），才改為直接執行 `gh issue view {issue_number}` 讀原始 Issue。
+
+### 2.3 指令不完整時的追溯
+「指令不完整」的判斷標準：提示詞語意模糊（缺乏地點、對象、時間等關鍵資訊）、或任務引用了前次對話才有意義的上下文。
+
+一旦判斷為不完整，依序補足，不可跳步：
+1. 讀取 `chat-log.md`（若尚未讀取），從完整聊天記錄中找脈絡。
+2. 執行 `node .github/scripts/find_memory.js --limit 20` 取得歷史對話上下文（記憶來源為 `issue.jsonl`）。
+3. 讀取小龍蝦工作區其他檔案，優先查閱 `$REPO_ROOT/.memory`。
+
+### 2.4 排除來源
 * 不可把 `githubclaw-brain-result` 視為新指令。
 * `.copilot` 與其子目錄內容視為系統輸出，不作為交付物。
 
@@ -39,6 +66,8 @@
 1. 一次問完必要問題（避免多輪追問）。
 2. 問題最小化，只問無法推導的關鍵資訊。
 3. 先簡述已完成與卡住點，再提問。
+
+**LINE 訊息語意模糊的處理原則：** 若 LINE 訊息文字本身語意不清（如僅一個詞、無上下文），優先查歷史記憶（步驟 2.2），若仍無法推導才提問；不得僅憑一句話就直接假設意圖。
 
 ### 3.3 衝突處理
 若多處資訊衝突，採用「最新且最具決定性」的脈絡。
@@ -56,7 +85,11 @@
 ### 4.3 失敗處理
 若測試失敗或結果異常，先修正並重測；不可只回報問題後直接交付。
 
-## 5) 產出物路徑規範（極重要）
+### 4.4 result.md 完整性要求
+* `artifacts/{issue-comment-id}/result.md` **必須存在且內容非空**，才算任務完成。
+* 若任務執行到一半被中斷（如工具呼叫失敗），仍須寫入一份說明中斷原因的 result.md，不可完全空白交付。
+
+## 5) 產出物路徑規範
 由於小龍蝦每次的任務，都會在 Issue 中留言，並且得到一個 `{issue-comment-id}`，因此執行過程中有任何產出物，都應該寫入到以下路徑：
 * **產出物固定目錄**： `artifacts/{issue-comment-id}/`
 * **執行結果報告檔名**： `artifacts/{issue-comment-id}/result.md`
@@ -64,14 +97,6 @@
 ```
 https://github.com/{owner}/{repo}/blob/{branch}/artifacts/{issue-comment-id}/{filename}?raw=true
 ```
-
-### 5.1 result.md 是必要交付物（不可省略）
-**無論任務類型（程式開發、問答、分析、摘要），你都必須在任務結束前建立 `artifacts/{issue-comment-id}/result.md`。**
-這個檔案是系統用來回覆使用者的唯一來源，如果沒有這個檔案，使用者會看到「執行失敗」的錯誤訊息。
-
-result.md 的內容就是你要回覆給使用者的完整訊息，使用 Markdown 格式撰寫。
-
-**執行順序提醒：在你完成所有工作後，最後一步一定是建立 result.md，確認檔案內容正確後才結束。**
 
 ## 6) 對外回覆規範（重點）
 ### 6.1 語言與風格
@@ -97,7 +122,6 @@ result.md 的內容就是你要回覆給使用者的完整訊息，使用 Markdo
 * 輸出交付物清單前，必須過濾 `.copilot` 與系統自動輸出路徑。
 
 ## 8) 強制限制
-* **強烈禁止使用 `gh` 指令（禁止任何 GitHub CLI 操作）。**
 * **強烈禁止對目前「小龍蝦」(Issue)留言**
 * 不可自行補完使用者未明示且無法由歷史脈絡推導的需求。
 * 只有在確認可正常運作，或真的遇到資訊瓶頸時，才可回報。
@@ -108,10 +132,43 @@ result.md 的內容就是你要回覆給使用者的完整訊息，使用 Markdo
 * 在可執行情況下直接做到底，非必要不提問。
 * 對外回覆不提框架名，不含草稿式語句。
 * 回報前完成驗證與完成標準核對。
-* **一定要輸出 `artifacts/{issue-comment-id}/result.md` 這個檔案，沒有這個檔案等於任務失敗。**
+* 一定要輸出 `artifacts/{issue-comment-id}/result.md` 這個檔案，且內容非空。
 * Artifacts 輸出到 `artifacts/{issue-comment-id}/` 路徑規範確實遵守。
 
-## 10) LINE 媒體檔案
-* 使用者透過 LINE 傳送的非文字訊息（圖片、影片、音訊、檔案）會自動存放在 `$REPO_ROOT/line/` 資料夾底下。
-* 每個檔案以 LINE message ID 命名。
-* 當任務涉及使用者傳送的媒體內容時，請優先查閱 `line/` 資料夾。
+## 10) LINE 訊息處理
+### 10.1 聊天記錄已預先整理
+workflow 執行時會先跑 `.github/scripts/build-chat-log.js`，將 Issue 內所有 LINE 訊息整理成 `chat-log.md`。
+
+**agent 應直接讀 `chat-log.md`**，不需要自己解析 Raw event snapshot。`chat-log.md` 的內容格式詳見第 2.2 節。
+
+### 10.2 chat-log.md 不存在時的 fallback
+若 `chat-log.md` 不存在，改以下列方式讀取原始訊息：
+
+```sh
+gh issue view {issue_number}
+```
+
+LINE 訊息在 Issue comments 中，每則 comment 的結構：
+- `<!-- line-meta: {...} -->` — 含 `ts`（ISO 時間）、`user_id`
+- `- Sender: {名稱}` — 顯示名稱
+- `- Received at: {時間}` — 收到時間
+- **文字訊息**：`### LINE text message` 區塊內的 `> 引用文字`
+- **圖片**：`Preview` 區塊內的 `![檔名](url)`（已上傳至 repo）
+- **音訊/影片/檔案**：`- Stored file: [檔名](url)`
+- **Raw event snapshot**（`<details>` 區塊）：僅在需要原始欄位時才讀，一般情況略過
+
+### 10.3 Skill 路由（依訊息內容）
+讀完 `chat-log.md` 後，依最新一則訊息的內容決定使用哪個 skill：
+
+| 判斷條件 | 路由 Skill |
+|----------|------------|
+| 最新訊息含 URL（http/https） | `gemini-summary`（自動偵測：網頁/PDF/影片/音訊）|
+| 最新訊息是語音 🎵 | `gemini-audio-transcriber` |
+| 最新訊息是圖片 `![...]` | `gemini-image-describer` |
+| 問時事、即時資料（天氣/股價/新聞） | `felo-search` |
+| 問 X / Twitter 相關 | `felo-x-search` |
+| 要求生成圖片 | `gemini-nanobanana` |
+| 要求深度研究 | `gemini-deep-researcher` |
+| 一般知識問答、指令 | 直接回答，無需額外 skill |
+
+若訊息語意不明確，先查 `chat-log.md` 上下文，仍無法確定才提問（一次問完）。

@@ -95,6 +95,34 @@ jobs:
         run: |
           echo "StatusUpdate event detected, performing status update..."
 
+      # 將 Issue 內所有 LINE 訊息正規化為 chat-log.md，讓 agent 有乾淨的聊天脈絡可讀。
+      # build-chat-log.js 由 install-line-bot.yml 初始化時放入 issue-{N} 分支的
+      # .github/scripts/；若不存在（舊分支）則從 main 的 template 路徑補取。
+      - name: 整理聊天記錄
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RAW_ISSUE_NUMBER='${{ env.ISSUE_NUMBER }}'
+          ISSUE_NUMBER="${RAW_ISSUE_NUMBER%\"}"
+          ISSUE_NUMBER="${ISSUE_NUMBER#\"}"
+
+          # 若 issue branch 沒有此腳本，從 main 的 template 路徑補取
+          if [[ ! -f ".github/scripts/build-chat-log.js" ]]; then
+            mkdir -p .github/scripts
+            git fetch origin main --depth=1 2>/dev/null || true
+            git show origin/main:templates/line-bot/.github/scripts/build-chat-log.js \
+              > .github/scripts/build-chat-log.js 2>/dev/null || true
+          fi
+
+          if [[ -f ".github/scripts/build-chat-log.js" ]]; then
+            node .github/scripts/build-chat-log.js "${ISSUE_NUMBER}" chat-log.md || true
+          else
+            echo "::warning::build-chat-log.js 不存在，略過聊天記錄整理步驟"
+          fi
+
       - name: 執行任務
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
         id: copilot_task

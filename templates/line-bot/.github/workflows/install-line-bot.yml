@@ -28,7 +28,7 @@ on:
 run-name: "🚀 安裝 LINE Bot Worker - ${{ inputs.line_bot_id }}"
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 concurrency:
@@ -237,6 +237,95 @@ jobs:
           put_optional_secret "LINE_DEFAULT_REPLY_MESSAGE" "${LINE_DEFAULT_REPLY_MESSAGE}"
           put_secret "DEFAULT_UTC_OFFSET" "${DEFAULT_UTC_OFFSET}"
 
+      - name: Checkout target repository
+        if: ${{ inputs.issue_number != '' }}
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CLAW_SYS_GITHUB_TOKEN || github.token }}
+          fetch-depth: 0
+
+      - name: 初始化 issue workspace
+        if: ${{ inputs.issue_number != '' }}
+        shell: bash
+        env:
+          PUSH_TOKEN: ${{ secrets.CLAW_SYS_GITHUB_TOKEN || github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags origin main
+          git checkout -B main origin/main
+
+          BRANCH="issue-${ISSUE_NUMBER}"
+          WORKFLOW_FILE=".github/workflows/issue-${ISSUE_NUMBER}.yml"
+          TEMPLATE_WORKFLOW="templates/line-bot/.github/workflows/issue-N.yml"
+          TEMPLATE_SCRIPT="templates/line-bot/.github/scripts/build-chat-log.js"
+
+          # ── main 分支：只部署 workflow ──────────────────────
+          main_changed=false
+
+          if [[ ! -f "${WORKFLOW_FILE}" ]] && [[ -f "${TEMPLATE_WORKFLOW}" ]]; then
+            cp "${TEMPLATE_WORKFLOW}" "${WORKFLOW_FILE}"
+            sed -i "s/執行小龍蝦任務 #N/執行小龍蝦任務 #${ISSUE_NUMBER}/g" "${WORKFLOW_FILE}"
+            git add "${WORKFLOW_FILE}"
+            main_changed=true
+            echo "::notice::新增 ${WORKFLOW_FILE}"
+          fi
+
+          if [[ "${main_changed}" == "true" ]]; then
+            git commit -m "chore: 準備 issue #${ISSUE_NUMBER} workflow"
+            git push origin main
+          fi
+
+          # ── issue branch：若不存在則建立 orphan 分支 ────────
+          git fetch --no-tags origin "${BRANCH}" 2>/dev/null || true
+
+          if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
+            echo "::notice::${BRANCH} 已存在，略過初始化"
+          else
+            git checkout --orphan "${BRANCH}"
+            git rm -rf . >/dev/null 2>&1 || true
+
+            mkdir -p .copilot
+
+            # 複製 .copilot/config.json（優先使用 line-bot 範本，否則 default）
+            if git show "origin/main:templates/line-bot/.copilot/config.json" > /tmp/copilot-config.json 2>/dev/null || \
+               git show "origin/main:templates/default/.copilot/config.json" > /tmp/copilot-config.json 2>/dev/null; then
+              cp /tmp/copilot-config.json .copilot/config.json
+            fi
+
+            # 複製 .copilot/mcp-config.json
+            if git show "origin/main:templates/line-bot/.copilot/mcp-config.json" > /tmp/mcp-config.json 2>/dev/null || \
+               git show "origin/main:templates/default/.copilot/mcp-config.json" > /tmp/mcp-config.json 2>/dev/null; then
+              cp /tmp/mcp-config.json .copilot/mcp-config.json
+            fi
+
+            # 複製 AGENTS.md（優先使用 line-bot 範本）
+            if git show "origin/main:templates/line-bot/AGENTS.md" > /tmp/AGENTS.md 2>/dev/null || \
+               git show "origin/main:templates/default/AGENTS.md" > /tmp/AGENTS.md 2>/dev/null; then
+              cp /tmp/AGENTS.md AGENTS.md
+            fi
+
+            # 複製 build-chat-log.js 到 .github/scripts/
+            if git show "origin/main:templates/line-bot/.github/scripts/build-chat-log.js" > /tmp/build-chat-log.js 2>/dev/null; then
+              mkdir -p .github/scripts
+              cp /tmp/build-chat-log.js .github/scripts/build-chat-log.js
+            fi
+
+            git add -A 2>/dev/null || true
+
+            if git diff --cached --quiet; then
+              echo "::warning::沒有可提交的範本檔案到 ${BRANCH}"
+            else
+              git commit -m "chore: 初始化 issue #${ISSUE_NUMBER} 工作分支（範本：line-bot）"
+              git push origin "${BRANCH}"
+              echo "::notice::已建立並推送 ${BRANCH}"
+            fi
+          fi
+
       - name: 設定 LINE Webhook URL
         shell: bash
         env:
@@ -294,6 +383,7 @@ jobs:
             echo "| LINE Bot Channel ID | \`${LINE_CHANNEL_ID}\` |"
             echo "| Issue 綁定模式 | ${{ inputs.issue_number != '' && 'fixed' || 'dynamic-by-source' }} |"
             echo "| 固定 Issue | ${ISSUE_NUMBER:-_dynamic_} |"
+            [[ -n "${ISSUE_NUMBER}" ]] && echo "| Issue 工作分支 | \`issue-${ISSUE_NUMBER}\` |" || true
             echo "| DEFAULT_UTC_OFFSET | ${{ inputs.default_utc_offset }} |"
             echo ""
             echo "> ⚠️ **請至 [LINE Developers Console](https://developers.line.biz/console/channel/${LINE_CHANNEL_ID}/messaging-api) 確認已開啟「Use webhook」開關**（LINE API 不支援自動開啟）"
