@@ -25,8 +25,7 @@ required_env:
 |----------|------|------|
 | `GEMINI_API_KEY` | ✅ | Google Gemini API 金鑰 |
 | `PROMPT_FILE` | ✅ | 包含歌詞或提示詞的文字檔路徑 |
-| `ISSUE_DIR` | ✅ | 音訊檔案輸出目錄，**必須使用 `artifacts/{issue-comment-id}`**（即 result.md 所在目錄，comment_id 從任務提示詞的 `artifacts/XXXXX/result.md` 取得） |
-| `BRANCH` | ❌ | 目前 Git 分支名稱（填入後 metadata 自動完整，否則需手動補 branch） |
+| `ISSUE_DIR` | ✅ | 音訊檔案輸出目錄 |
 | `NAME_PREFIX` | ❌ | 輸出檔案名稱前綴（預設：`track`） |
 | `LYRIA_MODEL` 或 `MODEL` | ❌ | 使用的模型（預設：`lyria-3-pro-preview`） |
 
@@ -36,22 +35,28 @@ required_env:
 # 先取得 repo root（獨立執行，不使用 $()）
 git rev-parse --show-toplevel
 
-# 再 cd 到 repo root 後執行（COMMENT_ID 從任務提示詞取得，BRANCH 填入當前分支）：
+# 再 cd 到 repo root 後執行：
 PROMPT_FILE="./lyrics.txt" \
-ISSUE_DIR="artifacts/4311701680" \
-BRANCH="issue-2" \
+ISSUE_DIR="./music-output" \
 node .agents/skills/gemini-lyria-3/scripts/generate-track.js
 ```
 
 ## 輸出格式
 
-腳本執行成功後，stdout 會輸出：
-1. 每個儲存的相對路徑，格式為 `Saved: <path>`
-2. 一個 `=== 複製以下內容到 result.md ===` 區塊，包含：
-   - 音訊路徑的 backtick 格式（例如 `` `artifacts/4311701680/track-0.mp3` ``）
-   - 完整的 `githubclaw-artifacts` metadata block
+腳本執行後：
+- 每個生成的音軌儲存為音訊檔案（格式依 API 回傳的 MIME type 決定，通常為 `.mp3`）
+- stdout 輸出每個儲存的相對路徑，格式為 `Saved: <path>`
+- stderr 輸出進度訊息與錯誤
 
-**直接將腳本輸出的「複製以下內容」區塊放進 result.md。** 不要修改、也不要替換成「已附上音訊」等文字。
+成功後請以下列格式回報結果：
+
+```
+🎵 音樂生成完成！
+
+- [track-0.mp3](https://github.com/{GITHUB_REPO}/blob/{BRANCH}/{path}?raw=true)
+
+<!-- githubclaw-artifacts: {"audio":[{"branch":"{BRANCH}","path":"{path}"}],"html":[]} -->
+```
 
 ## Instructions for the Agent
 
@@ -59,16 +64,14 @@ node .agents/skills/gemini-lyria-3/scripts/generate-track.js
 
 1. 確認使用者提供了歌詞內容或文字提示詞。
 2. 將歌詞或提示詞寫入暫時文字檔（例如 `./lyrics.txt`）。
-3. 從任務提示詞（`artifacts/{COMMENT_ID}/result.md`）取得 COMMENT_ID；執行 `git branch --show-current` 取得 BRANCH（獨立執行，不用 `$()`）。
+3. 設定 `ISSUE_DIR` 為音訊輸出目錄（建議使用 `./music-output` 或 issue 的 artifacts 目錄）。
 4. 確認環境中已設定 `GEMINI_API_KEY`。
-5. 執行腳本，**`ISSUE_DIR` 必須設為 `artifacts/{COMMENT_ID}`**（不可用 `./music-output`）：
+5. 執行腳本：
    ```sh
-   PROMPT_FILE="./lyrics.txt" ISSUE_DIR="artifacts/4311701680" BRANCH="issue-2" node .agents/skills/gemini-lyria-3/scripts/generate-track.js
+   PROMPT_FILE="./lyrics.txt" ISSUE_DIR="./music-output" node .agents/skills/gemini-lyria-3/scripts/generate-track.js
    ```
-6. 從 stdout 的「複製以下內容到 result.md」區塊，取得 backtick 路徑與 `githubclaw-artifacts` metadata。
-7. 將這些內容原封不動放入 result.md，連同任務結果說明一起回報。
-   - ✅ 正確：`` `artifacts/4311701680/track-0.mp3` ``
-   - ❌ 錯誤：「已附上音訊」、「已附上圖片」、只寫 `track-0.mp3`
+6. 解析 stdout 中 `Saved: <path>` 行取得生成的音軌路徑。
+7. 以 Markdown 連結格式回報每個音軌，加上 `githubclaw-artifacts` metadata 供 Telegram relay 使用。
 8. 若 exit code 非 0，檢查 stderr 錯誤訊息，不要自行編造結果。
 
 ## 錯誤處理
@@ -80,5 +83,3 @@ node .agents/skills/gemini-lyria-3/scripts/generate-track.js
 | `缺少 ISSUE_DIR 環境變數` | 未指定輸出目錄 |
 | `... 內容為空，無法生成音樂` | 歌詞/提示詞檔案為空 |
 | `API 未回傳任何音訊資料` | API 沒有回傳音訊，請確認模型與 API Key |
-
-

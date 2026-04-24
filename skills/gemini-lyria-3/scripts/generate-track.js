@@ -110,28 +110,10 @@ async function main() {
   }
 
   if (savedFiles.length === 0) {
-    throw new Error("API 未回傳任何音訊資料，請確認模型與 API Key 設定");
+    throw new Error("API 未回傳任何音訊資料。原始回應：" + JSON.stringify(json ?? body));
   }
 
   console.error(`共生成 ${savedFiles.length} 個音軌檔案`);
-
-  // 輸出 result.md 用的 backtick 路徑與 githubclaw-artifacts metadata block
-  const branch = (process.env.BRANCH || "").trim();
-  const audioEntries = savedFiles.map((p) => {
-    const normalized = p.replace(/\\/g, "/").replace(/^\.\//, "");
-    const branchValue = branch || "<branch>";
-    return `{"branch":"${branchValue}","path":"${normalized}"}`;
-  });
-
-  console.log("\n=== 複製以下內容到 result.md ===");
-  for (const p of savedFiles) {
-    const normalized = p.replace(/\\/g, "/").replace(/^\.\//, "");
-    console.log(`\`${normalized}\``);
-  }
-  console.log(
-    `\n<!-- githubclaw-artifacts: {"audio":[${audioEntries.join(",")}],"html":[]} -->`
-  );
-  console.log("=================================");
 }
 
 main().catch((error) => {
