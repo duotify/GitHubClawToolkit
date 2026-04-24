@@ -1,0 +1,11 @@
+{
+  "name": "Gemini Lyria-3",
+  "tagline": "AI 音樂生成，從歌詞或提示詞一鍵產出音軌",
+  "description": "Gemini Lyria-3 使用 Google Lyria-3 模型，根據使用者提供的歌詞或文字描述生成 AI 音樂音軌。支援串流輸出、多段音軌儲存，並自動以結構化格式回報生成結果，適合音樂創作、作曲輔助與自動化音訊生成情境。",
+  "category": "content",
+  "tags": ["gemini", "lyria", "music-generation", "audio", "ai-music"],
+  "version": "1.0.0",
+  "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
+  "homepage": "https://learn.duotify.com/courses/githubclaw",
+  "requireEnv": ["GEMINI_API_KEY"]
+}
