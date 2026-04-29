@@ -35,8 +35,9 @@
     },
     {
       "id": "cloudflare",
-      "label": "CloudFlare Workers AI",
-      "description": "使用 CloudFlare Workers AI 推論 API。",
+      "label": "Cloudflare",
+      "description": "使用 Cloudflare Workers AI 推論 API。",
+      "isDefault": true,
       "secretName": "CLOUDFLARE_API_TOKEN",
       "presetVariables": {
         "providerType": "openai"
@@ -47,7 +48,7 @@
         { "value": "@cf/zai-org/glm-4.7-flash", "label": "GLM 4.7 Flash" },
         { "value": "@cf/openai/gpt-oss-120b", "label": "GPT OSS 120B" },
         { "value": "@cf/meta/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout 17B" },
-        { "value": "@cf/google/gemma-4-26b-a4b-it", "label": "Gemma 4 26B" },
+        { "value": "@cf/google/gemma-4-26b-a4b-it", "label": "Gemma4b" },
         { "value": "@cf/nvidia/nemotron-3-120b-a12b", "label": "Nemotron 3 120B" }
       ]
     },
