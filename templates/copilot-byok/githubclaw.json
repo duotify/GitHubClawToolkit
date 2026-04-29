@@ -1,0 +1,76 @@
+{
+  "name": "Copilot BYOK",
+  "tagline": "自帶模型 — 接 NIM、Groq、CloudFlare Workers AI 等端點",
+  "description": "使用通用 Copilot BYOK provider 架構的小龍蝦範本。每隻小龍蝦可獨立選擇 provider 與 model，API key 按 provider 分開管理。",
+  "category": "ai",
+  "tags": ["byok", "nim", "groq", "cloudflare", "custom-model"],
+  "version": "2.0.0",
+  "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
+  "homepage": "https://learn.duotify.com/courses/githubclaw",
+  "providers": [
+    {
+      "id": "nvidia-nim",
+      "label": "NVIDIA NIM",
+      "description": "使用 NVIDIA Integrate API 作為 Copilot BYOK provider。",
+      "secretName": "COPILOT_BYOK_NIM_KEY",
+      "presetVariables": {
+        "providerBaseUrl": "https://integrate.api.nvidia.com/v1",
+        "providerType": "openai"
+      },
+      "defaultModel": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "modelSource": {
+        "type": "remote",
+        "kind": "nvidia-models"
+      }
+    },
+    {
+      "id": "groq",
+      "label": "Groq",
+      "description": "使用 Groq 高速推論 API。",
+      "secretName": "COPILOT_BYOK_GROQ_KEY",
+      "presetVariables": {
+        "providerBaseUrl": "https://api.groq.com/openai/v1",
+        "providerType": "openai"
+      }
+    },
+    {
+      "id": "cloudflare",
+      "label": "CloudFlare Workers AI",
+      "description": "使用 CloudFlare Workers AI 推論 API。",
+      "secretName": "CLOUDFLARE_API_TOKEN",
+      "presetVariables": {
+        "providerType": "openai"
+      },
+      "defaultModel": "@cf/google/gemma-4-26b-a4b-it",
+      "models": [
+        { "value": "@cf/moonshotai/kimi-k2.6", "label": "Kimi K2.6" },
+        { "value": "@cf/zai-org/glm-4.7-flash", "label": "GLM 4.7 Flash" },
+        { "value": "@cf/openai/gpt-oss-120b", "label": "GPT OSS 120B" },
+        { "value": "@cf/meta/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout 17B" },
+        { "value": "@cf/google/gemma-4-26b-a4b-it", "label": "Gemma 4 26B" },
+        { "value": "@cf/nvidia/nemotron-3-120b-a12b", "label": "Nemotron 3 120B" }
+      ]
+    },
+    {
+      "id": "custom",
+      "label": "自行設定",
+      "description": "手動輸入自訂 BYOK provider 的 endpoint、provider type 與 model。",
+      "secretName": "COPILOT_PROVIDER_API_KEY",
+      "variableInputs": [
+        {
+          "name": "providerBaseUrl",
+          "label": "Provider Base URL"
+        },
+        {
+          "name": "providerType",
+          "label": "Provider Type",
+          "default": "openai"
+        },
+        {
+          "name": "byokModel",
+          "label": "Model"
+        }
+      ]
+    }
+  ]
+}
