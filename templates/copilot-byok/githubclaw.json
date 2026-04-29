@@ -24,16 +24,6 @@
       }
     },
     {
-      "id": "groq",
-      "label": "Groq",
-      "description": "使用 Groq 高速推論 API。",
-      "secretName": "COPILOT_BYOK_GROQ_KEY",
-      "presetVariables": {
-        "providerBaseUrl": "https://api.groq.com/openai/v1",
-        "providerType": "openai"
-      }
-    },
-    {
       "id": "cloudflare",
       "label": "Cloudflare",
       "description": "使用 Cloudflare Workers AI 推論 API。",
