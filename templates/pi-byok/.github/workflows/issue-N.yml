@@ -178,9 +178,14 @@ jobs:
 
           USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
 
+          # 固定 Pi Coding Agent 版本，避免 @latest 造成不可重現結果或遭上游 breaking change 影響。
+          # 可透過 repo variable PI_CODING_AGENT_VERSION 覆寫。
+          PI_CODING_AGENT_VERSION='${{ vars.PI_CODING_AGENT_VERSION }}'
+          : "${PI_CODING_AGENT_VERSION:=0.70.6}"
+
           # Pi 會自動讀 .pi/settings.json 的 defaultProvider 與 defaultModel
           # 以 error loglevel 執行，避免 npm warning 汙染 error.log
-          npm_config_loglevel=error npx -y @mariozechner/pi-coding-agent@latest \
+          npm_config_loglevel=error npx -y "@mariozechner/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
             --mode json \
             2> "artifacts/${COMMENT_ID}/error.log" \
