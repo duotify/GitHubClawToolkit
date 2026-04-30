@@ -181,11 +181,29 @@ jobs:
 
           USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
 
+          set +e
           npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.27' }} \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
             --yolo --stream off --output-format json \
             > "artifacts/${COMMENT_ID}/output.jsonl" \
             2> "artifacts/${COMMENT_ID}/error.log"
+          COPILOT_EXIT=$?
+          set -e
+
+          # Copilot CLI 的錯誤事件（session.error / model.call_failure）會輸出到 stdout 的 jsonl，
+          # 不會進 stderr，導致 error.log 為空。這裡從 output.jsonl 抽出錯誤訊息補進 error.log。
+          if [ -f "artifacts/${COMMENT_ID}/output.jsonl" ]; then
+            jq -r '
+              if .type == "session.error" then (.data.message // empty)
+              elif .type == "model.call_failure" then (.data.errorMessage // empty)
+              else empty
+              end
+            ' "artifacts/${COMMENT_ID}/output.jsonl" 2>/dev/null \
+              | awk 'NF && !seen[$0]++' \
+              >> "artifacts/${COMMENT_ID}/error.log" || true
+          fi
+
+          exit $COPILOT_EXIT
 
       - name: 推送結果
         if: always()
