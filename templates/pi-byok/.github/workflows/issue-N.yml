@@ -1,0 +1,229 @@
+# 這個 workflow 會接手指定 issue，執行 Pi Coding Agent，並把結果回寫到 issue comment 與 issue branch。
+# 注意：整個流程直接跑在 GitHub Actions runner 上，這份 YAML 本身沒有使用 Docker container。
+name: '🦞 執行小龍蝦任務 #N'
+
+# 支援兩種觸發方式：
+# 1. workflow_dispatch：從 GitHub Actions UI 手動填參數後執行
+# 2. repository_dispatch：由外部系統帶 payload 呼叫
+on:
+  # 讓人可以手動啟動這個 workflow，適合排錯或由上游系統代送參數。
+  workflow_dispatch:
+    inputs:
+      # 要處理的 GitHub issue 編號。
+      issue_number:
+        description: 'GitHub issue number to process'
+        required: true
+        type: string
+      # 可選：若上游已建立進度留言，這裡可以直接指定 comment id 來沿用。
+      comment_id:
+        description: 'Existing issue comment ID to reuse for progress updates'
+        required: false
+        type: string
+      user_comment_id:
+        description: 'User issue comment ID used to locate artifacts/{user_comment_id}/user.md'
+        required: false
+        type: string
+      # 可選：觸發來源，方便 workflow 內部根據不同來源調整行為或紀錄分析用。
+      event_source:
+        description: 'Who is triggering this workflow: cron or issue'
+        required: false
+        type: choice
+        default: ''
+        options:
+          - ''
+          - cron
+          - issue
+      event_data:
+        description: 'Additional data related to the event that triggered this workflow'
+        required: false
+        type: string
+        default: ''
+  # 讓外部 dispatcher 用 API 觸發這個 workflow。
+  repository_dispatch:
+    types: [coding-agent]
+
+# Actions UI 上顯示的執行名稱，會把 issue 編號直接帶進來，方便辨識。
+run-name: "🦞 執行小龍蝦 #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+
+# 避免同一個 repo + issue 同時有多個 agent 執行互相覆蓋。
+concurrency:
+  group: "coding-agent-${{ github.repository }}-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  cancel-in-progress: false
+
+# 這個 workflow 需要能推送內容，也需要能建立/更新 issue comment。
+permissions:
+  contents: write
+  issues: write
+
+# 把不同 trigger 的 payload 統一整理成共用環境變數，後續 step 只要讀 env 即可。
+env:
+  # 統一後的 issue 編號。
+  ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  # 若有提供現成的 comment id，就直接更新那則留言。
+  COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
+  # 這次觸發來源的使用者留言 id，用來讀取對應的 user.md。
+  USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
+
+jobs:
+  # 單一主 job：在 GitHub-hosted runner 上完成驗證、執行 agent、寫回結果。
+  run-agent:
+    # 直接跑在 Ubuntu runner，不是以 Docker container 執行。
+    runs-on: ubuntu-latest
+    # 最多允許執行 90 分鐘，避免 workflow 無限卡住。
+    timeout-minutes: 90
+
+    steps:
+      # 把目標 repo 檢出到 runner，後面才能切 branch、寫檔與 push。
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+          fetch-depth: 1
+
+      # 先把 Node.js 環境準備好，Pi Coding Agent 需要 Node.js 執行。
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 狀態更新處理
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
+        shell: bash
+        run: |
+          echo "StatusUpdate event detected, performing status update..."
+
+      # 從 .pi/settings.json 讀取使用者選擇的 provider，並設定對應的 API key 環境變數
+      - name: 讀取 BYOK 設定
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        shell: bash
+        env:
+          SECRET_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SECRET_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SECRET_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SECRET_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SECRET_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          # 讀取 provider（Pi 原生 provider id）
+          PROVIDER="cloudflare-workers-ai"
+          if [ -f .pi/settings.json ]; then
+            PROVIDER=$(jq -r '.defaultProvider // "cloudflare-workers-ai"' .pi/settings.json)
+          fi
+
+          # 依 provider 設定對應的 Pi 環境變數
+          case "$PROVIDER" in
+            cloudflare-workers-ai)
+              echo "CLOUDFLARE_API_KEY=${SECRET_CLOUDFLARE_API_TOKEN}" >> "$GITHUB_ENV"
+              echo "CLOUDFLARE_ACCOUNT_ID=${SECRET_CLOUDFLARE_ACCOUNT_ID}" >> "$GITHUB_ENV"
+              ;;
+            anthropic)
+              echo "ANTHROPIC_API_KEY=${SECRET_ANTHROPIC_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            openai)
+              echo "OPENAI_API_KEY=${SECRET_OPENAI_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            google)
+              echo "GEMINI_API_KEY=${SECRET_GEMINI_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "Unknown provider: $PROVIDER"
+              exit 1
+              ;;
+          esac
+
+          echo "PI_PROVIDER=$PROVIDER" >> "$GITHUB_ENV"
+
+      - name: 執行任務
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        id: pi_task
+        shell: bash
+        run: |
+          RAW_ISSUE_NUMBER='${{ env.ISSUE_NUMBER }}'
+          RAW_COMMENT_ID='${{ env.COMMENT_ID }}'
+          RAW_USER_COMMENT_ID='${{ env.USER_COMMENT_ID }}'
+
+          ISSUE_NUMBER="${RAW_ISSUE_NUMBER%\"}"
+          ISSUE_NUMBER="${ISSUE_NUMBER#\"}"
+          COMMENT_ID="${RAW_COMMENT_ID%\"}"
+          COMMENT_ID="${COMMENT_ID#\"}"
+          USER_COMMENT_ID="${RAW_USER_COMMENT_ID%\"}"
+          USER_COMMENT_ID="${USER_COMMENT_ID#\"}"
+
+          if [[ -z "$COMMENT_ID" || -z "$USER_COMMENT_ID" ]]; then
+            echo "COMMENT_ID or USER_COMMENT_ID is missing"
+            exit 1
+          fi
+
+          mkdir -p "artifacts/${COMMENT_ID}"
+
+          git fetch origin "issue-${ISSUE_NUMBER}" --depth=1
+          git checkout -B "issue-${ISSUE_NUMBER}" "origin/issue-${ISSUE_NUMBER}"
+
+          USER_PROMPT_FILE="artifacts/${USER_COMMENT_ID}/user.md"
+          for attempt in {1..10}; do
+            if [[ -f "$USER_PROMPT_FILE" ]]; then
+              break
+            fi
+            echo "Waiting for $USER_PROMPT_FILE (attempt ${attempt}/10)"
+            git fetch origin "issue-${ISSUE_NUMBER}" --depth=1
+            git reset --hard "origin/issue-${ISSUE_NUMBER}"
+            sleep 2
+          done
+
+          if [[ ! -f "$USER_PROMPT_FILE" ]]; then
+            echo "Missing user prompt file: $USER_PROMPT_FILE"
+            ls -la artifacts || true
+            find artifacts -maxdepth 2 -type f | sort || true
+            exit 1
+          fi
+
+          USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
+
+          # Pi 會自動讀 .pi/settings.json 的 defaultProvider 與 defaultModel
+          # 以 error loglevel 執行，避免 npm warning 汙染 error.log
+          npm_config_loglevel=error npx -y @mariozechner/pi-coding-agent@latest \
+            -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
+            --mode json \
+            2> "artifacts/${COMMENT_ID}/error.log" \
+            | jq -c 'select(.type | test("^(session|agent_|turn_|message_start|message_end|tool_|error|result|compaction_|auto_retry_)"))' \
+            > "artifacts/${COMMENT_ID}/output.jsonl"
+
+          # Pi 即使遇到 provider 錯誤也會以 exit 0 結束，需要從 output.jsonl 偵測 errorMessage
+          # 偵測到時補寫進 error.log 並讓本步驟失敗，後續的失敗處理才會觸發
+          if jq -e '.. | objects | select((.errorMessage // "") != "")' \
+              "artifacts/${COMMENT_ID}/output.jsonl" > /dev/null; then
+            jq -r '.. | objects | .errorMessage? // empty' \
+              "artifacts/${COMMENT_ID}/output.jsonl" \
+              | awk 'NF && !seen[$0]++' \
+              >> "artifacts/${COMMENT_ID}/error.log"
+            echo "Pi reported errorMessage; marking step as failed." >&2
+            exit 1
+          fi
+
+      - name: 推送結果
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update results for issue #${{ env.ISSUE_NUMBER }}"
+          fi
+          git push origin "issue-${{ env.ISSUE_NUMBER }}" --force
+
+      - name: 任務失敗處理
+        if: failure() && steps.pi_task.conclusion == 'failure'
+        uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.4
+        with:
+          output_file: artifacts/${{ env.COMMENT_ID }}/error.log
+          result_file: artifacts/${{ env.COMMENT_ID }}/result.md
+
+      - name: 執行結果回報
+        if: always()
+        uses: duotify/GitHubClawToolkit/actions/update-comment-action@v1.1.4
+        with:
+          issue_number: ${{ env.ISSUE_NUMBER }}
+          comment_id: ${{ env.COMMENT_ID }}
+          message_file: artifacts/${{ env.COMMENT_ID }}/result.md

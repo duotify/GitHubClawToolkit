@@ -1,0 +1,5 @@
+{
+  "defaultProvider": "cloudflare-workers-ai",
+  "defaultModel": "@cf/moonshotai/kimi-k2.6",
+  "quietStartup": true
+}
