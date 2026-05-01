@@ -38,6 +38,15 @@ runs:
         # 1. 有存在的 message_file：讀取檔案內容
         # 2. 其他情況：改用執行失敗 fallback 訊息
         if [[ -n "${MESSAGE_FILE}" && -f "${MESSAGE_FILE}" ]]; then
+          # 自動攔截並修正 AI 可能產生錯誤的 artifacts 網址與分支名稱 (Post-processing)
+          BRANCH_NAME="issue-${ISSUE_NUMBER}"
+          
+          # 修正 1: Markdown 圖片/連結的 GitHub URL (替換 owner, repo, branch)
+          sed -i -E "s|https://github.com/[^/]+/[^/]+/blob/[^/]+/artifacts/|https://github.com/${REPOSITORY}/blob/${BRANCH_NAME}/artifacts/|g" "${MESSAGE_FILE}"
+          
+          # 修正 2: HTML 註解內 JSON metadata 的 branch 屬性
+          sed -i -E "s|\"branch\":\"[^\"]+\"|\"branch\":\"${BRANCH_NAME}\"|g" "${MESSAGE_FILE}"
+          
           message="$(cat "${MESSAGE_FILE}")"
         else
           message="$(printf '❌ 執行失敗。請查看 Workflow 執行記錄。')"
