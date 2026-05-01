@@ -31,8 +31,8 @@
         { "value": "nvidia/nemotron-3-super-120b-a12b", "label": "Nemotron 3 Super 120B" },
         { "value": "openai/gpt-oss-120b", "label": "GPT OSS 120B" },
         { "value": "minimaxai/minimax-m2.7", "label": "MiniMax M2.7" },
-        { "value": "z-ai/glm5.1", "label": "GLM 5.1" },
-        { "value": "z-ai/glm4.7", "label": "GLM 4.7" },
+        { "value": "z-ai/glm-5.1", "label": "GLM 5.1" },
+        { "value": "z-ai/glm-4.7", "label": "GLM 4.7" },
         { "value": "mistralai/mistral-medium-3.5-128b", "label": "Mistral Medium 3.5 128B" },
         { "value": "deepseek-ai/deepseek-v4-flash", "label": "DeepSeek V4 Flash" },
         { "value": "deepseek-ai/deepseek-v4-pro", "label": "DeepSeek V4 Pro" }
