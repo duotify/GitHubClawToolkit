@@ -1,0 +1,20 @@
+{
+  "providers": {
+    "pgx": {
+      "baseUrl": "https://pgx.playwright.tw/v1",
+      "api": "openai-completions",
+      "apiKey": "dummy",
+      "authHeader": true,
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false
+      },
+      "models": [
+        {
+          "id": "qwen3.6",
+          "name": "Qwen 3.6"
+        }
+      ]
+    }
+  }
+}
