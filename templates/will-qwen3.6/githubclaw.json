@@ -3,7 +3,7 @@
   "tagline": "使用 Pi Coding Agent — 支援 qwen3.6:35b 跑在保哥的 Lenovo ThinkStation PGX 上面",
   "description": "使用 Pi Coding Agent — 支援 qwen3.6:35b 跑在保哥的 Lenovo ThinkStation PGX 上面",
   "category": "ai",
-  "tags": ["pi", "byok", "cloudflare", "anthropic", "openai", "gemini"],
+  "tags": ["pi", "qwen", "pgx"],
   "version": "1.0.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw"
