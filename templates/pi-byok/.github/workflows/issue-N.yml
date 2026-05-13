@@ -106,8 +106,10 @@ jobs:
         run: |
           # 讀取 provider（Pi 原生 provider id）
           PROVIDER="cloudflare-workers-ai"
+          MODEL=""
           if [ -f .pi/settings.json ]; then
             PROVIDER=$(jq -r '.defaultProvider // "cloudflare-workers-ai"' .pi/settings.json)
+            MODEL=$(jq -r '.defaultModel // ""' .pi/settings.json)
           fi
 
           # 依 provider 設定對應的 Pi 環境變數
@@ -135,6 +137,13 @@ jobs:
           esac
 
           echo "PI_PROVIDER=$PROVIDER" >> "$GITHUB_ENV"
+          echo "PI_MODEL=$MODEL" >> "$GITHUB_ENV"
+
+          # Groq Compound 目前不接受 reasoning_effort；Pi 預設 thinking=medium 會送出該參數。
+          # 對 Compound 系列自動關閉 thinking，避免 400 reasoning_effort is not supported。
+          if [[ "$PROVIDER" == "groq" && "$MODEL" == groq/compound* ]]; then
+            echo "PI_THINKING_LEVEL=off" >> "$GITHUB_ENV"
+          fi
 
       - name: 執行任務
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
@@ -187,9 +196,15 @@ jobs:
           PI_CODING_AGENT_VERSION='${{ vars.PI_CODING_AGENT_VERSION }}'
           : "${PI_CODING_AGENT_VERSION:=0.70.6}"
 
+          PI_THINKING_ARGS=()
+          if [[ -n "${PI_THINKING_LEVEL:-}" ]]; then
+            PI_THINKING_ARGS=(--thinking "$PI_THINKING_LEVEL")
+          fi
+
           # Pi 會自動讀 .pi/settings.json 的 defaultProvider 與 defaultModel
           # 以 error loglevel 執行，避免 npm warning 汙染 error.log
           npm_config_loglevel=error npx -y "@mariozechner/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
+            "${PI_THINKING_ARGS[@]}" \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
             --mode json \
             2> "artifacts/${COMMENT_ID}/error.log" \
