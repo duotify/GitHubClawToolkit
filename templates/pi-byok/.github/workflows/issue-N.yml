@@ -103,6 +103,7 @@ jobs:
           SECRET_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SECRET_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           SECRET_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SECRET_PIONEER_API_KEY: ${{ secrets.PIONEER_API_KEY }}
         run: |
           # 讀取 provider（Pi 原生 provider id）
           PROVIDER="cloudflare-workers-ai"
@@ -128,6 +129,9 @@ jobs:
             google)
               echo "GEMINI_API_KEY=${SECRET_GEMINI_API_KEY}" >> "$GITHUB_ENV"
               ;;
+            pioneer)
+              echo "PIONEER_API_KEY=${SECRET_PIONEER_API_KEY}" >> "$GITHUB_ENV"
+              ;;
             *)
               echo "Unknown provider: $PROVIDER"
               exit 1
@@ -140,6 +144,8 @@ jobs:
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
         id: pi_task
         shell: bash
+        env:
+          PI_CODING_AGENT_DIR: ".pi"
         run: |
           RAW_ISSUE_NUMBER='${{ env.ISSUE_NUMBER }}'
           RAW_COMMENT_ID='${{ env.COMMENT_ID }}'
@@ -187,7 +193,7 @@ jobs:
           PI_CODING_AGENT_VERSION='${{ vars.PI_CODING_AGENT_VERSION }}'
           : "${PI_CODING_AGENT_VERSION:=0.70.6}"
 
-          # Pi 會自動讀 .pi/settings.json 的 defaultProvider 與 defaultModel
+          # Pi 會透過 PI_CODING_AGENT_DIR=.pi 讀取 template 內的 settings.json 與 models.json
           # 以 error loglevel 執行，避免 npm warning 汙染 error.log
           npm_config_loglevel=error npx -y "@mariozechner/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \

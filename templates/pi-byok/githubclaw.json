@@ -1,10 +1,10 @@
 {
   "name": "Pi BYOK",
-  "tagline": "使用 Pi Coding Agent — 原生支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq",
-  "description": "以 Pi Coding Agent 作為小龍蝦執行引擎的範本。每隻小龍蝦可獨立選擇 provider 與 model，API key 按 provider 分開管理。Pi 原生支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq 等 provider，不需要額外的轉接層。",
+  "tagline": "使用 Pi Coding Agent — 支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer",
+  "description": "以 Pi Coding Agent 作為小龍蝦執行引擎的範本。每隻小龍蝦可獨立選擇 provider 與 model，API key 按 provider 分開管理。支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer 等 provider，不需要額外的轉接層。",
   "category": "ai",
-  "tags": ["pi", "byok", "cloudflare", "anthropic", "openai", "gemini", "groq"],
-  "version": "1.1.0",
+  "tags": ["pi", "byok", "cloudflare", "anthropic", "openai", "gemini", "groq", "pioneer"],
+  "version": "1.2.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
   "byokFlow": true,
@@ -97,6 +97,20 @@
         { "value": "gemini-3-pro-preview", "label": "Gemini 3 Pro (Preview)" },
         { "value": "gemini-3.1-flash-lite-preview", "label": "Gemini 3.1 Flash Lite (Preview)" },
         { "value": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro (Preview)" }
+      ]
+    },
+    {
+      "id": "pioneer",
+      "label": "Pioneer",
+      "description": "透過 Pioneer OpenAI-compatible endpoint 使用多種模型，需設定 PIONEER_API_KEY。",
+      "secretName": "PIONEER_API_KEY",
+      "defaultModel": "gpt-5.5",
+      "models": [
+        { "value": "gpt-5.5", "label": "Pioneer GPT-5.5" },
+        { "value": "claude-sonnet-4-6", "label": "Pioneer Claude Sonnet 4.6" },
+        { "value": "claude-opus-4-7", "label": "Pioneer Claude Opus 4.7" },
+        { "value": "deepseek-ai/DeepSeek-V4-Pro", "label": "Pioneer DeepSeek V4 Pro" },
+        { "value": "moonshotai/Kimi-K2.6", "label": "Pioneer Kimi K2.6" }
       ]
     }
   ]
