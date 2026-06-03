@@ -1,13 +1,13 @@
 {
   "name": "Antigravity GCP",
   "tagline": "在 GitHub Actions 以 Antigravity CLI 執行小龍蝦任務（GCP 認證）",
-  "description": "Antigravity GCP 範本讓學員在 GitHub Actions 執行 Antigravity CLI（agy），透過 AGY OAuth 憑證檔（oauth_creds.json）做非互動認證並將結果回寫到 issue comment 與 issue branch artifacts。",
+  "description": "Antigravity GCP 範本讓學員在 GitHub Actions 執行 Antigravity CLI（agy），透過 GCP Application Default Credentials（ADC）認證並將結果回寫到 issue comment 與 issue branch artifacts。",
   "category": "ai",
   "tags": ["antigravity", "agy", "gcp", "github-actions", "template"],
   "version": "1.0.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
-  "requireEnv": ["AGY_OAUTH_CREDS_JSON"],
+  "requireEnv": ["AGY_GOOGLE_ADC_JSON"],
   "need_model": true,
   "modelVar": "AGY_MODEL",
   "models": [

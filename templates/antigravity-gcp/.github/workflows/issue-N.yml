@@ -49,6 +49,7 @@ env:
   USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
   AGY_MODEL: "${{ vars.AGY_MODEL || 'gemini-2.5-flash' }}"
   AGY_PRINT_TIMEOUT: "${{ vars.AGY_PRINT_TIMEOUT || '20m' }}"
+  GOOGLE_CLOUD_PROJECT: "${{ vars.GOOGLE_CLOUD_PROJECT }}"
 
 jobs:
   run-agent:
@@ -73,34 +74,35 @@ jobs:
         run: |
           echo "StatusUpdate event detected, performing status update..."
 
-      - name: Restore Antigravity OAuth credentials
+      - name: Setup GCP Application Default Credentials
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
         shell: bash
         env:
-          AGY_OAUTH_CREDS_JSON: ${{ secrets.AGY_OAUTH_CREDS_JSON }}
+          AGY_GOOGLE_ADC_JSON: ${{ secrets.AGY_GOOGLE_ADC_JSON }}
         run: |
           set -euo pipefail
 
-          if [[ -z "${AGY_OAUTH_CREDS_JSON}" ]]; then
-            echo "Missing required secret: AGY_OAUTH_CREDS_JSON"
+          if [[ -z "${AGY_GOOGLE_ADC_JSON}" ]]; then
+            echo "::error::Missing required secret: AGY_GOOGLE_ADC_JSON"
             exit 1
           fi
 
-          mkdir -p "${HOME}/.gemini"
-          printf '%s' "${AGY_OAUTH_CREDS_JSON}" > "${HOME}/.gemini/oauth_creds.json"
-          chmod 600 "${HOME}/.gemini/oauth_creds.json"
+          ADC_PATH="${HOME}/.config/gcloud/application_default_credentials.json"
+          mkdir -p "$(dirname "${ADC_PATH}")"
+          printf '%s' "${AGY_GOOGLE_ADC_JSON}" > "${ADC_PATH}"
+          chmod 600 "${ADC_PATH}"
 
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
+          # 驗證 JSON 合法且含 refresh_token
+          python3 -c "
+          import json, pathlib, sys
+          data = json.loads(pathlib.Path('${ADC_PATH}').read_text())
+          if not data.get('refresh_token'):
+              sys.exit('AGY_GOOGLE_ADC_JSON must include refresh_token')
+          print('ADC validated: type=' + data.get('type','unknown'))
+          "
 
-          creds_file = Path.home() / ".gemini" / "oauth_creds.json"
-          with creds_file.open("r", encoding="utf-8") as f:
-              data = json.load(f)
-
-          if not data.get("refresh_token"):
-              raise SystemExit("AGY_OAUTH_CREDS_JSON must include refresh_token")
-          PY
+          # 設定後續 step 都能讀到
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${ADC_PATH}" >> "$GITHUB_ENV"
 
       - name: Install Antigravity CLI
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
@@ -118,6 +120,7 @@ jobs:
         env:
           AGY_MODEL: ${{ env.AGY_MODEL }}
           AGY_PRINT_TIMEOUT: ${{ env.AGY_PRINT_TIMEOUT }}
+          GOOGLE_CLOUD_PROJECT: ${{ env.GOOGLE_CLOUD_PROJECT }}
         run: |
           set -euo pipefail
 
