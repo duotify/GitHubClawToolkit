@@ -117,19 +117,45 @@ jobs:
           set -euo pipefail
           echo "=== AGY diagnostic ==="
           echo "which agy: $(which agy)"
-          echo "agy version:"
           agy --version 2>&1 || true
           echo ""
-          echo "=== Simple test (timeout 60s) ==="
+
+          # 檢查 token 檔案狀態（不印出完整 token）
+          TOKEN_PATH="${HOME}/.gemini/antigravity-cli/antigravity-oauth-token"
+          echo "Token file exists: $(test -f "${TOKEN_PATH}" && echo yes || echo no)"
+          echo "Token file size: $(wc -c < "${TOKEN_PATH}" 2>/dev/null || echo 0) bytes"
+          python3 -c "
+          import json
+          data = json.load(open('${TOKEN_PATH}'))
+          t = data.get('token', {})
+          print(f'auth_method: {data.get(\"auth_method\", \"unknown\")}')
+          print(f'has access_token: {bool(t.get(\"access_token\"))}')
+          print(f'has refresh_token: {bool(t.get(\"refresh_token\"))}')
+          print(f'expiry: {t.get(\"expiry\", \"unknown\")}')
+          " 2>&1 || true
+          echo ""
+
+          echo "=== Simple test with --log-file ==="
+          AGY_LOG="/tmp/agy-debug.log"
           set +e
           timeout 90 agy --print "Say hello in one sentence" \
             --dangerously-skip-permissions \
-            --print-timeout "60s" 2>&1 | tee /tmp/agy-test.log
+            --print-timeout "60s" \
+            --log-file "${AGY_LOG}" \
+            2>&1 | tee /tmp/agy-test.log
           TEST_EXIT=$?
           set -e
           echo ""
           echo "Test exit code: ${TEST_EXIT}"
           echo "Test output size: $(wc -c < /tmp/agy-test.log) bytes"
+          echo ""
+          if [[ -f "${AGY_LOG}" ]]; then
+            echo "=== AGY internal log (last 50 lines) ==="
+            tail -50 "${AGY_LOG}"
+          else
+            echo "No AGY log file generated"
+          fi
+          echo ""
           if [[ $(wc -c < /tmp/agy-test.log) -eq 0 ]]; then
             echo "::warning::AGY produced no output even for a simple test prompt"
           fi
