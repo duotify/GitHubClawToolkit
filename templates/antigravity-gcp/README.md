@@ -11,12 +11,9 @@
 
 ### GitHub Secrets
 
-- `AGY_GOOGLE_ADC_JSON`
-  - 內容為 GCP **Application Default Credentials** JSON 全文
-  - 產生方式：本機執行 `gcloud auth application-default login`，完成登入後複製 `~/.config/gcloud/application_default_credentials.json` 的內容
-  - 必須包含 `refresh_token`
-- `GOOGLE_CLOUD_PROJECT`
-  - 你的 GCP 專案 ID（例：`gen-lang-client-0487760146`）
+- `AGY_OAUTH_TOKEN`
+  - 內容為 AGY 的 OAuth token 檔案 `~/.gemini/antigravity-cli/antigravity-oauth-token` 全文
+  - 必須包含 `token.refresh_token`
 
 ### 可選 GitHub Variables
 
@@ -25,37 +22,36 @@
 
 ## 學員設定步驟
 
-1. 安裝 [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
-2. 登入 GCP（使用有 $300 免費試用額度的帳號）：
+1. 安裝 [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) 並登入 GCP：
    ```bash
    gcloud auth login
-   gcloud config set project YOUR_PROJECT_ID
-   ```
-3. 產生 Application Default Credentials：
-   ```bash
    gcloud auth application-default login
    ```
-4. 複製產生的 JSON 檔案內容：
+2. 安裝 Antigravity CLI 並完成登入（選擇 "Use a Google Cloud project"）：
    ```bash
-   cat ~/.config/gcloud/application_default_credentials.json
+   curl -fsSL https://antigravity.google/cli/install.sh | bash
+   agy
    ```
-5. 到 repo 的 **Settings → Secrets and variables → Actions**（或透過 TG 設定流程自動設定）：
-   - 新增 Secret `AGY_GOOGLE_ADC_JSON`：貼上步驟 4 的 JSON 全文
-   - 新增 Secret `GOOGLE_CLOUD_PROJECT`：填入你的 GCP 專案 ID
-6. 視需求設定 `AGY_MODEL`
+3. 登入成功後，複製 AGY 的 token 檔案內容：
+   ```bash
+   cat ~/.gemini/antigravity-cli/antigravity-oauth-token
+   ```
+4. 到 repo 的 **Settings → Secrets and variables → Actions**（或透過 TG 設定流程自動設定）：
+   - 新增 Secret `AGY_OAUTH_TOKEN`：貼上步驟 3 的 JSON 全文
+5. 視需求設定 `AGY_MODEL`
 
 ## 安全提醒
 
-- 不要把 `application_default_credentials.json` 直接提交到 repo
-- `AGY_GOOGLE_ADC_JSON` 具有帳號級權限，只放在 GitHub Secrets
-- 若帳號撤銷授權或 token 失效，重新執行 `gcloud auth application-default login` 並更新 secret
+- 不要把 `antigravity-oauth-token` 直接提交到 repo
+- `AGY_OAUTH_TOKEN` 具有帳號級權限，只放在 GitHub Secrets
+- 若帳號撤銷授權或 token 失效，重新在本機 `agy` 登入後更新 secret
 
 ## 常見錯誤
 
 - `Authentication required` / `authentication timed out`
-  - 代表 ADC 未正確設定，請確認 `AGY_GOOGLE_ADC_JSON` 內容正確且未過期/撤銷
-- `AGY_GOOGLE_ADC_JSON must include refresh_token`
-  - 代表 secret 內容格式不正確，請重新執行 `gcloud auth application-default login`
+  - 代表 token 未正確還原，請確認 `AGY_OAUTH_TOKEN` 內容正確且未過期/撤銷
+- `AGY_OAUTH_TOKEN must contain token.refresh_token`
+  - 代表 secret 內容格式不正確，請確認貼的是 `~/.gemini/antigravity-cli/antigravity-oauth-token` 的完整內容
 - `COMMENT_ID or USER_COMMENT_ID is missing`
   - 代表觸發 payload 缺少必要欄位
 - `Missing user prompt file`
