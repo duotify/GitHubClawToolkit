@@ -47,7 +47,7 @@ env:
   ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
   COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
   USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
-  AGY_MODEL: "${{ vars.AGY_MODEL || 'gemini-2.5-flash' }}"
+  AGY_MODEL: "${{ vars.AGY_MODEL || 'Gemini 3.5 Flash (Medium)' }}"
   AGY_PRINT_TIMEOUT: "${{ vars.AGY_PRINT_TIMEOUT || '20m' }}"
 
 jobs:
@@ -78,6 +78,8 @@ jobs:
         shell: bash
         env:
           AGY_OAUTH_TOKEN: ${{ secrets.AGY_OAUTH_TOKEN }}
+          AGY_GCP_PROJECT: ${{ secrets.AGY_GCP_PROJECT }}
+          AGY_MODEL: ${{ env.AGY_MODEL }}
         run: |
           set -euo pipefail
 
@@ -85,20 +87,41 @@ jobs:
             echo "::error::Missing required secret: AGY_OAUTH_TOKEN"
             exit 1
           fi
+          if [[ -z "${AGY_GCP_PROJECT}" ]]; then
+            echo "::error::Missing required secret: AGY_GCP_PROJECT"
+            exit 1
+          fi
 
-          TOKEN_PATH="${HOME}/.gemini/antigravity-cli/antigravity-oauth-token"
-          mkdir -p "$(dirname "${TOKEN_PATH}")"
-          printf '%s' "${AGY_OAUTH_TOKEN}" > "${TOKEN_PATH}"
-          chmod 600 "${TOKEN_PATH}"
+          AGY_DIR="${HOME}/.gemini/antigravity-cli"
+          mkdir -p "${AGY_DIR}"
 
-          # 驗證 JSON 合法且含 refresh_token
+          # 還原 token 檔
+          printf '%s' "${AGY_OAUTH_TOKEN}" > "${AGY_DIR}/antigravity-oauth-token"
+          chmod 600 "${AGY_DIR}/antigravity-oauth-token"
+
+          # 產生 settings.json（model + GCP project）
+          python3 -c "
+          import json
+          settings = {
+              'gcp': {'project': '${AGY_GCP_PROJECT}', 'location': 'global'},
+              'model': '${AGY_MODEL}',
+              'enableTelemetry': False
+          }
+          with open('${AGY_DIR}/settings.json', 'w') as f:
+              json.dump(settings, f, indent=2)
+          print('settings.json written')
+          "
+
+          # 驗證 token JSON
           python3 -c "
           import json, sys
-          data = json.loads(open('${TOKEN_PATH}').read())
+          data = json.loads(open('${AGY_DIR}/antigravity-oauth-token').read())
           token = data.get('token', {})
           if not token.get('refresh_token'):
               sys.exit('AGY_OAUTH_TOKEN must contain token.refresh_token')
           print('AGY token validated: auth_method=' + data.get('auth_method','unknown'))
+          print('GCP project: ${AGY_GCP_PROJECT}')
+          print('Model: ${AGY_MODEL}')
           "
 
       - name: Install Antigravity CLI

@@ -14,30 +14,34 @@
 - `AGY_OAUTH_TOKEN`
   - 內容為 AGY 的 OAuth token 檔案 `~/.gemini/antigravity-cli/antigravity-oauth-token` 全文
   - 必須包含 `token.refresh_token`
+- `AGY_GCP_PROJECT`
+  - 你的 GCP 專案 ID（例：`resolute-fold-498310-v6`）
+  - 可在 `~/.gemini/antigravity-cli/settings.json` 的 `gcp.project` 欄位找到
 
 ### 可選 GitHub Variables
 
-- `AGY_MODEL`（預設：`gemini-2.5-flash`）
+- `AGY_MODEL`（預設：`Gemini 3.5 Flash (Medium)`）
+  - 可用模型：`Gemini 3.5 Flash (Medium/High/Low)`、`Gemini 3.1 Pro (Low/High)`、`Gemini 3 Flash`
 - `AGY_PRINT_TIMEOUT`（預設：`20m`）
 
 ## 學員設定步驟
 
-1. 安裝 [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) 並登入 GCP：
-   ```bash
-   gcloud auth login
-   gcloud auth application-default login
-   ```
-2. 安裝 Antigravity CLI 並完成登入（選擇 "Use a Google Cloud project"）：
+1. 安裝 Antigravity CLI 並完成登入（選擇 "Use a Google Cloud project"）：
    ```bash
    curl -fsSL https://antigravity.google/cli/install.sh | bash
    agy
    ```
-3. 登入成功後，複製 AGY 的 token 檔案內容：
+2. 登入成功後，複製 AGY 的 token 檔案內容：
    ```bash
    cat ~/.gemini/antigravity-cli/antigravity-oauth-token
    ```
+3. 查看你的 GCP 專案 ID：
+   ```bash
+   cat ~/.gemini/antigravity-cli/settings.json | python3 -c "import json,sys; print(json.load(sys.stdin)['gcp']['project'])"
+   ```
 4. 到 repo 的 **Settings → Secrets and variables → Actions**（或透過 TG 設定流程自動設定）：
-   - 新增 Secret `AGY_OAUTH_TOKEN`：貼上步驟 3 的 JSON 全文
+   - 新增 Secret `AGY_OAUTH_TOKEN`：貼上步驟 2 的 JSON 全文
+   - 新增 Secret `AGY_GCP_PROJECT`：填入步驟 3 的專案 ID
 5. 視需求設定 `AGY_MODEL`
 
 ## 安全提醒

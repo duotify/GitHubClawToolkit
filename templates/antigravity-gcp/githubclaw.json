@@ -7,14 +7,15 @@
   "version": "1.0.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
-  "requireEnv": ["AGY_OAUTH_TOKEN"],
+  "requireEnv": ["AGY_OAUTH_TOKEN", "AGY_GCP_PROJECT"],
   "need_model": true,
   "modelVar": "AGY_MODEL",
   "models": [
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash",
-    "gemini-3-flash-preview",
-    "gemini-3-pro-preview"
+    "Gemini 3.5 Flash (Medium)",
+    "Gemini 3.5 Flash (High)",
+    "Gemini 3.5 Flash (Low)",
+    "Gemini 3.1 Pro (Low)",
+    "Gemini 3.1 Pro (High)",
+    "Gemini 3 Flash"
   ]
 }
