@@ -49,8 +49,8 @@ env:
   COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
   USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
   GROK_MODEL: "${{ vars.GROK_MODEL || 'grok-build' }}"
-  # 認證方式二選一：
-  # - GROK_AUTH_JSON（推薦，如果你有 SuperGrok 訂閱）：把本機 ~/.grok/auth.json 內容貼成 secret
+  # 認證方式二選一（在 GitHub Secrets 設定其中一個）：
+  # - GROK_AUTH_JSON（推薦，如果你有 SuperGrok 訂閱）：把本機 ~/.grok/auth.json 整個內容貼成 secret
   # - XAI_API_KEY：從 https://console.x.ai 取得的傳統 API Key（需要額度）
 
 jobs:
@@ -104,7 +104,7 @@ EOF
             # 傳統 API Key 路徑（console.x.ai，需要額度）
             echo "Grok credentials configured (model=${GROK_MODEL}, using XAI_API_KEY from secret)"
           else
-            echo "::error::Missing authentication: Please set either GROK_AUTH_JSON (for SuperGrok OAuth) or XAI_API_KEY secret"
+            echo "::error::Missing authentication: Please set a GitHub Secret named GROK_AUTH_JSON (recommended for SuperGrok OAuth users) or XAI_API_KEY"
             exit 1
           fi
 

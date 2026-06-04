@@ -47,11 +47,15 @@
 
 透過 Telegram 龍蝦堡機器人安裝本範本後，請在你的 GitHub repo 設定以下 **Secrets**（Settings → Secrets and variables → Actions）：
 
-**推薦做法（SuperGrok 使用者）：**
-- `GROK_AUTH_JSON`：把上面 `cat ~/.grok/auth.json` 拿到的**完整 JSON** 貼進去。
+**推薦（有 SuperGrok 訂閱的使用者）：**
+- Secret 名稱：`GROK_AUTH_JSON`
+- 值：把上面 `cat ~/.grok/auth.json` 拿到的**完整 JSON 內容**（從 { 開始到 } 結束）整個貼進去。
 
-**傳統做法：**
-- `XAI_API_KEY`：貼上從 console.x.ai 取得的金鑰。
+**傳統 API Key 方式：**
+- Secret 名稱：`XAI_API_KEY`
+- 值：貼上從 https://console.x.ai 取得的完整金鑰（`xai-...` 開頭）。
+
+**注意**：GitHub Secret 名稱只能包含英文字母、數字或底線（_），不能有空格或 "or"。
 
 可選（Repository variables）：
 - `GROK_MODEL`：例如 `grok-build`（預設值）

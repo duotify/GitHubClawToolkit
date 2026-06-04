@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
-  "requireEnv": ["GROK_AUTH_JSON or XAI_API_KEY"],
+  "requireEnv": ["GROK_AUTH_JSON", "XAI_API_KEY"],
   "need_model": true,
   "modelVar": "GROK_MODEL",
   "models": [
