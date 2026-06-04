@@ -60,25 +60,7 @@
 可選（Repository variables）：
 - `GROK_MODEL`：例如 `grok-build`（預設值）
 
-設定完成後，請**繼續執行下一節「啟用 Workflow」**，否則新小龍蝦不會觸發執行。
-
-## 啟用 Workflow（重要！）
-
-GitHub 為了防止惡意範本，**從 Template 建立的 repo 其 workflow 預設是停用的**。
-
-即使 main 分支已經有 `issue-N.yml` 檔案，新建立的小龍蝦也不會自動觸發 workflow。
-
-請依照以下步驟手動啟用一次（只需做一次）：
-
-1. 前往你的 GitHub 儲存庫。
-2. 點擊上方分頁的 **Actions**。
-3. 在左側或列表中找到工作流程 **🦞 執行小龍蝦任務 #N**（可能顯示為 disabled / 停用）。
-4. 點擊進入該 workflow。
-5. 在右上角點擊 **Enable workflow**（啟用工作流程）按鈕。
-
-啟用後，之後透過 Telegram `/new` 建立的新小龍蝦，套用這個範本時，workflow 就會正常被觸發執行。
-
-如果你看到 "This workflow has not been enabled yet" 之類的提示，就是這個原因。
+設定完成後，workflow 會自動根據你提供的 secret 選擇正確的認證方式。
 
 ## 本機測試（SuperGrok OAuth）
 
@@ -95,4 +77,3 @@ grok -p "用繁體中文簡單說說你好" -m grok-build --yolo
 - 建議在本機也維持最新版 Grok CLI（`grok update`）。
 - 如果 token 過期，可以重新跑一次 `grok login --device-auth` 取得新的 auth.json，再更新 secret 即可。
 - 這個範本的設計參考 Antigravity GCP，把 OAuth token 的取得流程本地化一次，之後 CI 就能無痛使用你的 SuperGrok 訂閱。
-- **Workflow 啟用** 是必要步驟（見上方「啟用 Workflow」章節），否則即使 main 有 issue-N.yml，新小龍蝦也不會執行。
