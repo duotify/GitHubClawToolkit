@@ -1,0 +1,17 @@
+{
+  "name": "Grok Build",
+  "tagline": "在 GitHub Actions 使用 Grok CLI 執行小龍蝦任務（xAI）",
+  "description": "Grok Build 範本提供在 GitHub Actions 使用 Grok CLI（grok）的設定，透過 XAI_API_KEY 串接 xAI Grok 模型作為小龍蝦的執行引擎。適合需要強大 coding 與 agentic 能力的任務。",
+  "category": "ai",
+  "tags": ["grok", "xai", "grok-build", "github-actions", "template"],
+  "version": "1.0.0",
+  "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
+  "homepage": "https://learn.duotify.com/courses/githubclaw",
+  "requireEnv": ["XAI_API_KEY"],
+  "need_model": true,
+  "modelVar": "GROK_MODEL",
+  "models": [
+    "grok-build",
+    "grok-composer-2.5-fast"
+  ]
+}

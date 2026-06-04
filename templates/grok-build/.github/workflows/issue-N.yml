@@ -1,0 +1,229 @@
+# 這個 workflow 會接手指定 issue，執行 Grok CLI（grok），並把結果回寫到 issue comment 與 issue branch。
+# 注意：整個流程直接跑在 GitHub Actions runner 上，這份 YAML 本身沒有使用 Docker container。
+name: "🦞 執行小龍蝦任務 #N"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "GitHub issue number to process"
+        required: true
+        type: string
+      comment_id:
+        description: "Existing issue comment ID to reuse for progress updates"
+        required: false
+        type: string
+      user_comment_id:
+        description: "User issue comment ID used to locate artifacts/{user_comment_id}/user.md"
+        required: false
+        type: string
+      event_source:
+        description: "Who is triggering this workflow: cron or issue"
+        required: false
+        type: choice
+        default: ""
+        options:
+          - ""
+          - cron
+          - issue
+      event_data:
+        description: "Additional data related to the event that triggered this workflow"
+        required: false
+        type: string
+        default: ""
+  repository_dispatch:
+    types: [coding-agent]
+
+run-name: "🦞 執行小龍蝦 #${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+
+concurrency:
+  group: "coding-agent-${{ github.repository }}-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  ISSUE_NUMBER: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+  COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
+  USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
+  GROK_MODEL: "${{ vars.GROK_MODEL || 'grok-build' }}"
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 狀態更新處理
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
+        shell: bash
+        run: |
+          echo "StatusUpdate event detected, performing status update..."
+
+      - name: Setup Grok CLI credentials
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        shell: bash
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          GROK_MODEL: ${{ env.GROK_MODEL }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${XAI_API_KEY}" ]]; then
+            echo "::error::Missing required secret: XAI_API_KEY"
+            exit 1
+          fi
+
+          GROK_DIR="${HOME}/.grok"
+          mkdir -p "${GROK_DIR}"
+
+          # 寫入最小 config.toml 以套用選擇的模型（執行期）
+          cat > "${GROK_DIR}/config.toml" << EOF
+[models]
+default = "${GROK_MODEL}"
+EOF
+
+          echo "Grok credentials configured (model=${GROK_MODEL}, using XAI_API_KEY from secret)"
+
+      - name: Install Grok CLI
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://x.ai/cli/install.sh | bash
+          GROK_BIN="${HOME}/.grok/bin"
+          echo "${GROK_BIN}" >> "$GITHUB_PATH"
+          "${GROK_BIN}/grok" --version >/dev/null
+
+      - name: 執行任務
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        id: grok_task
+        shell: bash
+        env:
+          GROK_MODEL: ${{ env.GROK_MODEL }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          RAW_ISSUE_NUMBER='${{ env.ISSUE_NUMBER }}'
+          RAW_COMMENT_ID='${{ env.COMMENT_ID }}'
+          RAW_USER_COMMENT_ID='${{ env.USER_COMMENT_ID }}'
+
+          ISSUE_NUMBER="${RAW_ISSUE_NUMBER%\"}"
+          ISSUE_NUMBER="${ISSUE_NUMBER#\"}"
+          COMMENT_ID="${RAW_COMMENT_ID%\"}"
+          COMMENT_ID="${COMMENT_ID#\"}"
+          USER_COMMENT_ID="${RAW_USER_COMMENT_ID%\"}"
+          USER_COMMENT_ID="${USER_COMMENT_ID#\"}"
+
+          if [[ -z "$COMMENT_ID" || -z "$USER_COMMENT_ID" ]]; then
+            echo "::error::COMMENT_ID or USER_COMMENT_ID is missing"
+            exit 1
+          fi
+
+          mkdir -p "artifacts/${COMMENT_ID}"
+
+          git fetch origin "issue-${ISSUE_NUMBER}" --depth=1
+          git checkout -B "issue-${ISSUE_NUMBER}" "origin/issue-${ISSUE_NUMBER}"
+
+          USER_PROMPT_FILE="artifacts/${USER_COMMENT_ID}/user.md"
+          for attempt in {1..10}; do
+            if [[ -f "$USER_PROMPT_FILE" ]]; then
+              break
+            fi
+            echo "Waiting for $USER_PROMPT_FILE (attempt ${attempt}/10)"
+            git fetch origin "issue-${ISSUE_NUMBER}" --depth=1
+            git reset --hard "origin/issue-${ISSUE_NUMBER}"
+            sleep 2
+          done
+
+          if [[ ! -f "$USER_PROMPT_FILE" ]]; then
+            echo "::error::Missing user prompt file: $USER_PROMPT_FILE"
+            ls -la artifacts || true
+            find artifacts -maxdepth 2 -type f | sort || true
+            exit 1
+          fi
+
+          USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
+
+          PROMPT_FILE="$(mktemp)"
+          cat > "${PROMPT_FILE}" <<-PROMPT_EOF
+請先閱讀 issue.md 與目前 repository 狀態，並完成以下任務：${USER_PROMPT_CONTENT}
+
+請使用模型：${GROK_MODEL}
+
+請把最終結果完整寫入 artifacts/${COMMENT_ID}/result.md（繁體中文），並確保檔案可直接作為 issue 回覆內容。
+PROMPT_EOF
+
+          set +e
+          grok -p "$(cat "${PROMPT_FILE}")" \
+            -m "${GROK_MODEL}" \
+            --yolo \
+            2>&1 | tee "artifacts/${COMMENT_ID}/output.log"
+          GROK_EXIT=${PIPESTATUS[0]}
+          set -e
+          rm -f "${PROMPT_FILE}"
+
+          # 偵測常見認證／金鑰錯誤
+          if grep -Eq '(authentication|invalid.*key|XAI_API_KEY|unauthorized|401|403)' "artifacts/${COMMENT_ID}/output.log"; then
+            echo "::error::Grok authentication failed or invalid XAI_API_KEY. Please check the secret."
+            exit 1
+          fi
+
+          if [[ ! -f "artifacts/${COMMENT_ID}/result.md" ]]; then
+            if [[ -s "artifacts/${COMMENT_ID}/output.log" ]]; then
+              {
+                printf '🦞 任務完成（Grok CLI）\n\n'
+                cat "artifacts/${COMMENT_ID}/output.log"
+              } > "artifacts/${COMMENT_ID}/result.md"
+            else
+              echo "::error::Grok produced no output (exit code: ${GROK_EXIT})"
+              exit 1
+            fi
+          fi
+
+          if [[ $GROK_EXIT -ne 0 ]]; then
+            echo "::warning::Grok exited with code ${GROK_EXIT}, but output was produced"
+          fi
+
+      - name: 推送結果
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update Grok results for issue #${{ env.ISSUE_NUMBER }}"
+          fi
+          git push origin "issue-${{ env.ISSUE_NUMBER }}" --force
+
+      - name: 任務失敗處理
+        if: failure() && steps.grok_task.conclusion == 'failure'
+        uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1.1.4
+        with:
+          output_file: artifacts/${{ env.COMMENT_ID }}/output.log
+          result_file: artifacts/${{ env.COMMENT_ID }}/result.md
+
+      - name: 執行結果回報
+        if: always()
+        uses: duotify/GitHubClawToolkit/actions/update-comment-action@v1.1.4
+        with:
+          issue_number: ${{ env.ISSUE_NUMBER }}
+          comment_id: ${{ env.COMMENT_ID }}
+          message_file: artifacts/${{ env.COMMENT_ID }}/result.md
