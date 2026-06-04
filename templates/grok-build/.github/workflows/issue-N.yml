@@ -90,10 +90,10 @@ jobs:
           mkdir -p "${GROK_DIR}"
 
           # 寫入最小 config.toml 以套用選擇的模型（執行期）
-          cat > "${GROK_DIR}/config.toml" << EOF
-[models]
-default = "${GROK_MODEL}"
-EOF
+          cat > "${GROK_DIR}/config.toml" <<-EOF
+          [models]
+          default = "${GROK_MODEL}"
+          EOF
 
           if [[ -n "${GROK_AUTH_JSON}" ]]; then
             # SuperGrok / OAuth 路徑：直接寫入 auth.json（從本機 grok login --device-auth 取得）
@@ -172,12 +172,12 @@ EOF
 
           PROMPT_FILE="$(mktemp)"
           cat > "${PROMPT_FILE}" <<-PROMPT_EOF
-請先閱讀 issue.md 與目前 repository 狀態，並完成以下任務：${USER_PROMPT_CONTENT}
+          請先閱讀 issue.md 與目前 repository 狀態，並完成以下任務：${USER_PROMPT_CONTENT}
 
-請使用模型：${GROK_MODEL}
+          請使用模型：${GROK_MODEL}
 
-請把最終結果完整寫入 artifacts/${COMMENT_ID}/result.md（繁體中文），並確保檔案可直接作為 issue 回覆內容。
-PROMPT_EOF
+          請把最終結果完整寫入 artifacts/${COMMENT_ID}/result.md（繁體中文），並確保檔案可直接作為 issue 回覆內容。
+          PROMPT_EOF
 
           set +e
           grok -p "$(cat "${PROMPT_FILE}")" \
