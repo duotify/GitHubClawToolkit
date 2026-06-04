@@ -49,6 +49,9 @@ env:
   COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
   USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
   GROK_MODEL: "${{ vars.GROK_MODEL || 'grok-build' }}"
+  # 認證方式二選一：
+  # - GROK_AUTH_JSON（推薦，如果你有 SuperGrok 訂閱）：把本機 ~/.grok/auth.json 內容貼成 secret
+  # - XAI_API_KEY：從 https://console.x.ai 取得的傳統 API Key（需要額度）
 
 jobs:
   run-agent:
@@ -77,15 +80,11 @@ jobs:
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
         shell: bash
         env:
+          GROK_AUTH_JSON: ${{ secrets.GROK_AUTH_JSON }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           GROK_MODEL: ${{ env.GROK_MODEL }}
         run: |
           set -euo pipefail
-
-          if [[ -z "${XAI_API_KEY}" ]]; then
-            echo "::error::Missing required secret: XAI_API_KEY"
-            exit 1
-          fi
 
           GROK_DIR="${HOME}/.grok"
           mkdir -p "${GROK_DIR}"
@@ -96,7 +95,18 @@ jobs:
 default = "${GROK_MODEL}"
 EOF
 
-          echo "Grok credentials configured (model=${GROK_MODEL}, using XAI_API_KEY from secret)"
+          if [[ -n "${GROK_AUTH_JSON}" ]]; then
+            # SuperGrok / OAuth 路徑：直接寫入 auth.json（從本機 grok login --device-auth 取得）
+            printf '%s' "${GROK_AUTH_JSON}" > "${GROK_DIR}/auth.json"
+            chmod 600 "${GROK_DIR}/auth.json"
+            echo "Grok credentials configured (model=${GROK_MODEL}, using SuperGrok OAuth from GROK_AUTH_JSON secret)"
+          elif [[ -n "${XAI_API_KEY}" ]]; then
+            # 傳統 API Key 路徑（console.x.ai，需要額度）
+            echo "Grok credentials configured (model=${GROK_MODEL}, using XAI_API_KEY from secret)"
+          else
+            echo "::error::Missing authentication: Please set either GROK_AUTH_JSON (for SuperGrok OAuth) or XAI_API_KEY secret"
+            exit 1
+          fi
 
       - name: Install Grok CLI
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
@@ -115,6 +125,7 @@ EOF
         env:
           GROK_MODEL: ${{ env.GROK_MODEL }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          # GROK_AUTH_JSON is handled via file in previous step; no need to pass as env here
         run: |
           set -euo pipefail
 
