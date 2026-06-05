@@ -104,6 +104,7 @@ jobs:
           SECRET_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           SECRET_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SECRET_PIONEER_API_KEY: ${{ secrets.PIONEER_API_KEY }}
+          SECRET_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           # 讀取 provider（Pi 原生 provider id）
           PROVIDER="cloudflare-workers-ai"
@@ -131,6 +132,9 @@ jobs:
               ;;
             pioneer)
               echo "PIONEER_API_KEY=${SECRET_PIONEER_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            openrouter)
+              echo "OPENROUTER_API_KEY=${SECRET_OPENROUTER_API_KEY}" >> "$GITHUB_ENV"
               ;;
             *)
               echo "Unknown provider: $PROVIDER"

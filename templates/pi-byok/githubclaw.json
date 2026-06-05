@@ -1,10 +1,10 @@
 {
   "name": "Pi BYOK",
-  "tagline": "使用 Pi Coding Agent — 支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer",
-  "description": "以 Pi Coding Agent 作為小龍蝦執行引擎的範本。每隻小龍蝦可獨立選擇 provider 與 model，API key 按 provider 分開管理。支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer 等 provider，不需要額外的轉接層。",
+  "tagline": "使用 Pi Coding Agent — 支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer、OpenRouter",
+  "description": "以 Pi Coding Agent 作為小龍蝦執行引擎的範本。每隻小龍蝦可獨立選擇 provider 與 model，API key 按 provider 分開管理。支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer、OpenRouter 等 provider，不需要額外的轉接層。",
   "category": "ai",
-  "tags": ["pi", "byok", "cloudflare", "anthropic", "openai", "gemini", "groq", "pioneer"],
-  "version": "1.2.0",
+  "tags": ["pi", "byok", "cloudflare", "anthropic", "openai", "gemini", "groq", "pioneer", "openrouter"],
+  "version": "1.3.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
   "byokFlow": true,
@@ -111,6 +111,19 @@
         { "value": "claude-opus-4-7", "label": "Pioneer Claude Opus 4.7" },
         { "value": "deepseek-ai/DeepSeek-V4-Pro", "label": "Pioneer DeepSeek V4 Pro" },
         { "value": "moonshotai/Kimi-K2.6", "label": "Pioneer Kimi K2.6" }
+      ]
+    },
+    {
+      "id": "openrouter",
+      "label": "OpenRouter",
+      "description": "透過 OpenRouter API 使用多種模型，需設定 OPENROUTER_API_KEY。",
+      "secretName": "OPENROUTER_API_KEY",
+      "defaultModel": "moonshotai/kimi-k2.6:free",
+      "models": [
+        { "value": "openai/gpt-oss-120b:free", "label": "GPT OSS 120B (free)" },
+        { "value": "google/gemma-4-31b-it:free", "label": "Gemma 4 31B (free)" },
+        { "value": "moonshotai/kimi-k2.6:free", "label": "Kimi K2.6 (free)" },
+        { "value": "qwen/qwen3-coder:free", "label": "Qwen3 Coder (free)" }
       ]
     }
   ]

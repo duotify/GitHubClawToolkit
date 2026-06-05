@@ -48,6 +48,49 @@
           "maxTokens": 16000
         }
       ]
+    },
+    "openrouter": {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "api": "openai-completions",
+      "apiKey": "OPENROUTER_API_KEY",
+      "headers": {
+        "HTTP-Referer": "https://github.com/duotify/GitHubClawToolkit",
+        "X-Title": "GitHubClawToolkit"
+      },
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false
+      },
+      "models": [
+        {
+          "id": "openai/gpt-oss-120b:free",
+          "name": "GPT OSS 120B (free)",
+          "input": ["text"],
+          "contextWindow": 131072,
+          "maxTokens": 8192
+        },
+        {
+          "id": "google/gemma-4-31b-it:free",
+          "name": "Gemma 4 31B (free)",
+          "input": ["text"],
+          "contextWindow": 262144,
+          "maxTokens": 8192
+        },
+        {
+          "id": "moonshotai/kimi-k2.6:free",
+          "name": "Kimi K2.6 (free)",
+          "input": ["text"],
+          "contextWindow": 262144,
+          "maxTokens": 8192
+        },
+        {
+          "id": "qwen/qwen3-coder:free",
+          "name": "Qwen3 Coder (free)",
+          "input": ["text"],
+          "contextWindow": 1048576,
+          "maxTokens": 8192
+        }
+      ]
     }
   }
 }
