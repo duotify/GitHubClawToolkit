@@ -197,6 +197,12 @@ jobs:
           PI_CODING_AGENT_VERSION='${{ vars.PI_CODING_AGENT_VERSION }}'
           : "${PI_CODING_AGENT_VERSION:=0.70.6}"
 
+          # 若選取 pioneer，則需要先安裝 pi-pioneer-provider 延伸模組
+          if [[ "${PI_PROVIDER}" == "pioneer" ]]; then
+            echo "Installing pi-pioneer-provider extension..."
+            npx -y "@mariozechner/pi-coding-agent@${PI_CODING_AGENT_VERSION}" install npm:pi-pioneer-provider
+          fi
+
           # Pi 會透過 PI_CODING_AGENT_DIR=.pi 讀取 template 內的 settings.json 與 models.json
           # 以 error loglevel 執行，避免 npm warning 汙染 error.log
           set +e

@@ -123,6 +123,41 @@ jobs:
             echo "::warning::build-chat-log.js 不存在，略過聊天記錄整理步驟"
           fi
 
+      # BYOK：從分支 .copilot/config.json 讀取 per-lobster 覆寫設定，並根據 provider 選取對應的 API key
+      - name: 讀取 BYOK 設定
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        shell: bash
+        env:
+          BYOK_KEY_NVIDIA_NIM: ${{ secrets.COPILOT_BYOK_NIM_KEY }}
+          BYOK_KEY_GROQ: ${{ secrets.COPILOT_BYOK_GROQ_KEY }}
+          BYOK_KEY_CLOUDFLARE: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BYOK_KEY_CUSTOM: ${{ secrets.COPILOT_PROVIDER_API_KEY }}
+          BYOK_KEY_PIONEER: ${{ secrets.PIONEER_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -f .copilot/config.json ]; then
+            OVR_URL=$(jq -r '.providerBaseUrl // empty' .copilot/config.json)
+            OVR_MODEL=$(jq -r '.byokModel // empty' .copilot/config.json)
+            OVR_TYPE=$(jq -r '.providerType // empty' .copilot/config.json)
+            PROVIDER=$(jq -r '.provider // "custom"' .copilot/config.json)
+
+            # CloudFlare：若 config.json 沒有 providerBaseUrl，自動從 secret 組合
+            if [ "$PROVIDER" = "cloudflare" ] && [ -z "$OVR_URL" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+              OVR_URL="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1"
+            fi
+
+            if [ -n "$OVR_URL" ];   then echo "COPILOT_PROVIDER_BASE_URL=$OVR_URL" >> "$GITHUB_ENV"; fi
+            if [ -n "$OVR_MODEL" ]; then echo "COPILOT_MODEL=$OVR_MODEL" >> "$GITHUB_ENV"; fi
+            if [ -n "$OVR_TYPE" ];  then echo "COPILOT_PROVIDER_TYPE=$OVR_TYPE" >> "$GITHUB_ENV"; fi
+
+            # 根據 provider 選取對應的 API key
+            KEY_VAR="BYOK_KEY_$(echo "$PROVIDER" | tr '[:lower:]-' '[:upper:]_')"
+            API_KEY="${!KEY_VAR}"
+            if [ -n "$API_KEY" ]; then
+              echo "COPILOT_PROVIDER_API_KEY=$API_KEY" >> "$GITHUB_ENV"
+            fi
+          fi
+
       - name: 執行任務
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
         id: copilot_task
@@ -130,6 +165,10 @@ jobs:
         env:
           COPILOT_GITHUB_TOKEN: ${{ env.COPILOT_GITHUB_TOKEN }}
           COPILOT_HOME: ".copilot"
+          COPILOT_PROVIDER_API_KEY: ${{ env.COPILOT_PROVIDER_API_KEY }}
+          COPILOT_PROVIDER_BASE_URL: ${{ env.COPILOT_PROVIDER_BASE_URL }}
+          COPILOT_MODEL: ${{ env.COPILOT_MODEL }}
+          COPILOT_PROVIDER_TYPE: ${{ env.COPILOT_PROVIDER_TYPE || 'openai' }}
         run: |
           RAW_ISSUE_NUMBER='${{ env.ISSUE_NUMBER }}'
           RAW_COMMENT_ID='${{ env.COMMENT_ID }}'
@@ -178,14 +217,27 @@ jobs:
             --yolo --stream off --output-format json \
             > "artifacts/${COMMENT_ID}/output.jsonl" \
             2> "artifacts/${COMMENT_ID}/error.log"
-          EXIT_CODE=$?
+          COPILOT_EXIT=$?
           set -e
 
+          # Copilot CLI 的錯誤事件（session.error / model.call_failure）會輸出到 stdout 的 jsonl，
+          # 不會進 stderr，導致 error.log 為空。這裡從 output.jsonl 抽出錯誤訊息補進 error.log。
+          if [ -f "artifacts/${COMMENT_ID}/output.jsonl" ]; then
+            jq -r '
+              if .type == "session.error" then (.data.message // empty)
+              elif .type == "model.call_failure" then (.data.errorMessage // empty)
+              else empty
+              end
+            ' "artifacts/${COMMENT_ID}/output.jsonl" 2>/dev/null \
+              | awk 'NF && !seen[$0]++' \
+              >> "artifacts/${COMMENT_ID}/error.log" || true
+          fi
+
           if [[ -s "artifacts/${COMMENT_ID}/result.md" ]]; then
-            echo "Warning: Copilot CLI exited with code ${EXIT_CODE}, but result.md was generated."
+            echo "Warning: Copilot CLI exited with code ${COPILOT_EXIT}, but result.md was generated."
             exit 0
           else
-            exit ${EXIT_CODE}
+            exit ${COPILOT_EXIT}
           fi
 
       - name: 推送結果
