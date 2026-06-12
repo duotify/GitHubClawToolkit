@@ -206,6 +206,7 @@ jobs:
           # Pi 會透過 PI_CODING_AGENT_DIR=.pi 讀取 template 內的 settings.json 與 models.json
           # 以 error loglevel 執行，避免 npm warning 汙染 error.log
           set +e
+          set -o pipefail
           npm_config_loglevel=error npx -y "@mariozechner/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
             --mode json \
@@ -213,6 +214,7 @@ jobs:
             | jq -c 'select(.type | test("^(session|agent_|turn_|message_start|message_end|tool_|error|result|compaction_|auto_retry_)"))' \
             > "artifacts/${COMMENT_ID}/output.jsonl"
           EXIT_CODE=$?
+          set +o pipefail
           set -e
 
           # Pi 即使遇到 provider 錯誤也會以 exit 0 結束，需要從 output.jsonl 偵測 errorMessage
