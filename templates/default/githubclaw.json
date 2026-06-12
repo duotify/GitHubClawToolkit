@@ -1,0 +1,131 @@
+{
+  "name": "Default",
+  "tagline": "龍蝦堡預設範本（Pi Coding Agent）— 預設 OpenRouter / DeepSeek V4 Flash",
+  "description": "龍蝦堡預設範本改用 Pi Coding Agent。每隻小龍蝦可獨立選擇 provider 與 model，API key 按 provider 分開管理。預設使用 OpenRouter 與 DeepSeek V4 Flash，並保留 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer、OpenRouter 多 provider 選擇。",
+  "category": "ai",
+  "tags": ["default", "pi", "byok", "cloudflare", "anthropic", "openai", "gemini", "groq", "pioneer", "openrouter"],
+  "version": "1.0.0",
+  "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
+  "homepage": "https://learn.duotify.com/courses/githubclaw",
+  "byokFlow": true,
+  "byokConfig": {
+    "path": ".pi/settings.json",
+    "providerField": "defaultProvider",
+    "modelField": "defaultModel",
+    "merge": true
+  },
+  "providers": [
+    {
+      "id": "cloudflare-workers-ai",
+      "label": "Cloudflare Workers AI",
+      "description": "使用 Cloudflare Workers AI 推論 API，免費額度內可用。",
+      "secretName": "CLOUDFLARE_API_TOKEN",
+      "defaultModel": "@cf/moonshotai/kimi-k2.6",
+      "models": [
+        { "value": "@cf/zai-org/glm-4.7-flash", "label": "GLM 4.7 Flash" },
+        { "value": "@cf/google/gemma-4-26b-a4b-it", "label": "Gemma 4 26B" },
+        { "value": "@cf/meta/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout 17B" },
+        { "value": "@cf/moonshotai/kimi-k2.5", "label": "Kimi K2.5" },
+        { "value": "@cf/moonshotai/kimi-k2.6", "label": "Kimi K2.6" },
+        { "value": "@cf/nvidia/nemotron-3-120b-a12b", "label": "Nemotron 3 120B" },
+        { "value": "@cf/openai/gpt-oss-120b", "label": "GPT OSS 120B" },
+        { "value": "@cf/openai/gpt-oss-20b", "label": "GPT OSS 20B" }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "label": "Anthropic",
+      "description": "使用 Anthropic Claude 系列模型。",
+      "secretName": "ANTHROPIC_API_KEY",
+      "defaultModel": "claude-sonnet-4-6",
+      "models": [
+        { "value": "claude-sonnet-4-6", "label": "Claude Sonnet 4.6" },
+        { "value": "claude-opus-4-7", "label": "Claude Opus 4.7" },
+        { "value": "claude-opus-4-6", "label": "Claude Opus 4.6" },
+        { "value": "claude-haiku-4-5", "label": "Claude Haiku 4.5" }
+      ]
+    },
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "description": "使用 OpenAI GPT 系列模型。",
+      "secretName": "OPENAI_API_KEY",
+      "defaultModel": "gpt-5-mini",
+      "models": [
+        { "value": "gpt-5.5", "label": "GPT-5.5" },
+        { "value": "gpt-5.4", "label": "GPT-5.4" },
+        { "value": "gpt-5.4-mini", "label": "GPT-5.4 Mini" },
+        { "value": "gpt-5.3-codex", "label": "GPT-5.3 Codex" },
+        { "value": "gpt-5-mini", "label": "GPT-5 Mini" },
+        { "value": "gpt-4.1", "label": "GPT-4.1" }
+      ]
+    },
+    {
+      "id": "groq",
+      "label": "Groq",
+      "description": "使用 Groq 高速推論 API。",
+      "secretName": "GROQ_API_KEY",
+      "defaultModel": "openai/gpt-oss-120b",
+      "models": [
+        { "value": "openai/gpt-oss-120b", "label": "GPT OSS 120B" },
+        { "value": "openai/gpt-oss-20b", "label": "GPT OSS 20B" },
+        { "value": "moonshotai/kimi-k2-instruct", "label": "Kimi K2 Instruct" },
+        { "value": "moonshotai/kimi-k2-instruct-0905", "label": "Kimi K2 Instruct 0905" },
+        { "value": "qwen/qwen3-32b", "label": "Qwen3 32B" },
+        { "value": "qwen-qwq-32b", "label": "Qwen QwQ 32B" },
+        { "value": "deepseek-r1-distill-llama-70b", "label": "DeepSeek R1 Distill Llama 70B" },
+        { "value": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B Versatile" },
+        { "value": "llama-3.1-8b-instant", "label": "Llama 3.1 8B Instant" },
+        { "value": "meta-llama/llama-4-maverick-17b-128e-instruct", "label": "Llama 4 Maverick 17B" },
+        { "value": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout 17B" },
+        { "value": "mistral-saba-24b", "label": "Mistral Saba 24B" },
+        { "value": "gemma2-9b-it", "label": "Gemma 2 9B" }
+      ]
+    },
+    {
+      "id": "google",
+      "label": "Google Gemini",
+      "description": "使用 Google Gemini 系列模型。",
+      "secretName": "GEMINI_API_KEY",
+      "defaultModel": "gemini-2.5-flash",
+      "models": [
+        { "value": "gemini-2.0-flash", "label": "Gemini 2.0 Flash" },
+        { "value": "gemini-2.5-flash", "label": "Gemini 2.5 Flash" },
+        { "value": "gemini-2.5-pro", "label": "Gemini 2.5 Pro" },
+        { "value": "gemini-3-flash-preview", "label": "Gemini 3 Flash (Preview)" },
+        { "value": "gemini-3-pro-preview", "label": "Gemini 3 Pro (Preview)" },
+        { "value": "gemini-3.1-flash-lite-preview", "label": "Gemini 3.1 Flash Lite (Preview)" },
+        { "value": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro (Preview)" }
+      ]
+    },
+    {
+      "id": "pioneer",
+      "label": "Pioneer",
+      "description": "透過 Pioneer OpenAI-compatible endpoint 使用多種模型，需設定 PIONEER_API_KEY。",
+      "secretName": "PIONEER_API_KEY",
+      "defaultModel": "gpt-5.5",
+      "models": [
+        { "value": "gpt-5.5", "label": "Pioneer GPT-5.5" },
+        { "value": "claude-sonnet-4-6", "label": "Pioneer Claude Sonnet 4.6" },
+        { "value": "claude-opus-4-7", "label": "Pioneer Claude Opus 4.7" },
+        { "value": "deepseek-ai/DeepSeek-V4-Pro", "label": "Pioneer DeepSeek V4 Pro" },
+        { "value": "moonshotai/Kimi-K2.6", "label": "Pioneer Kimi K2.6" }
+      ]
+    },
+    {
+      "id": "openrouter",
+      "label": "OpenRouter",
+      "description": "透過 OpenRouter API 使用多種模型，需設定 OPENROUTER_API_KEY。",
+      "isDefault": true,
+      "secretName": "OPENROUTER_API_KEY",
+      "defaultModel": "deepseek/deepseek-v4-flash",
+      "models": [
+        { "value": "deepseek/deepseek-v4-flash", "label": "DeepSeek V4 Flash" },
+        { "value": "openai/gpt-oss-120b:free", "label": "GPT OSS 120B (free)" },
+        { "value": "google/gemma-4-31b-it:free", "label": "Gemma 4 31B (free)" },
+        { "value": "moonshotai/kimi-k2.6:free", "label": "Kimi K2.6 (free)" },
+        { "value": "qwen/qwen3-coder:free", "label": "Qwen3 Coder (free)" }
+      ]
+    }
+  ]
+}

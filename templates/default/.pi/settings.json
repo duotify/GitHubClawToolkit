@@ -1,0 +1,5 @@
+{
+  "defaultProvider": "openrouter",
+  "defaultModel": "deepseek/deepseek-v4-flash",
+  "quietStartup": true
+}

@@ -1,4 +1,4 @@
-# 這個 workflow 會接手指定 issue，執行 Copilot CLI，並把結果回寫到 issue comment 與 issue branch。
+# 這個 workflow 會接手指定 issue，執行 Pi Coding Agent，並把結果回寫到 issue comment 與 issue branch。
 # 注意：整個流程直接跑在 GitHub Actions runner 上，這份 YAML 本身沒有使用 Docker container。
 name: '🦞 執行小龍蝦任務 #N'
 
@@ -63,8 +63,6 @@ env:
   COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
   # 這次觸發來源的使用者留言 id，用來讀取對應的 user.md。
   USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
-  # 給 Copilot CLI 做 GitHub 驗證用的 token；實際權限要看 repo secrets 如何配置。
-  COPILOT_GITHUB_TOKEN: "${{ secrets.COPILOT_GITHUB_TOKEN }}"
 
 jobs:
   # 單一主 job：在 GitHub-hosted runner 上完成驗證、執行 agent、寫回結果。
@@ -82,7 +80,7 @@ jobs:
           ref: "issue-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.issue_number || inputs.issue_number }}"
           fetch-depth: 1
 
-      # 先把 Node.js 環境準備好，方便 CLI 或 Node-based tooling 使用。
+      # 先把 Node.js 環境準備好，Pi Coding Agent 需要 Node.js 執行。
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -94,13 +92,64 @@ jobs:
         run: |
           echo "StatusUpdate event detected, performing status update..."
 
-      - name: 執行任務
+      # 從 .pi/settings.json 讀取使用者選擇的 provider，並設定對應的 API key 環境變數
+      - name: 讀取 BYOK 設定
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
-        id: copilot_task
         shell: bash
         env:
-          COPILOT_GITHUB_TOKEN: ${{ env.COPILOT_GITHUB_TOKEN }}
-          COPILOT_HOME: ".copilot"
+          SECRET_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SECRET_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SECRET_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SECRET_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SECRET_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SECRET_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SECRET_PIONEER_API_KEY: ${{ secrets.PIONEER_API_KEY }}
+          SECRET_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          # 讀取 provider（Pi 原生 provider id）
+          PROVIDER="openrouter"
+          if [ -f .pi/settings.json ]; then
+            PROVIDER=$(jq -r '.defaultProvider // "openrouter"' .pi/settings.json)
+          fi
+
+          # 依 provider 設定對應的 Pi 環境變數
+          case "$PROVIDER" in
+            cloudflare-workers-ai)
+              echo "CLOUDFLARE_API_KEY=${SECRET_CLOUDFLARE_API_TOKEN}" >> "$GITHUB_ENV"
+              echo "CLOUDFLARE_ACCOUNT_ID=${SECRET_CLOUDFLARE_ACCOUNT_ID}" >> "$GITHUB_ENV"
+              ;;
+            anthropic)
+              echo "ANTHROPIC_API_KEY=${SECRET_ANTHROPIC_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            openai)
+              echo "OPENAI_API_KEY=${SECRET_OPENAI_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            groq)
+              echo "GROQ_API_KEY=${SECRET_GROQ_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            google)
+              echo "GEMINI_API_KEY=${SECRET_GEMINI_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            pioneer)
+              echo "PIONEER_API_KEY=${SECRET_PIONEER_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            openrouter)
+              echo "OPENROUTER_API_KEY=${SECRET_OPENROUTER_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "Unknown provider: $PROVIDER"
+              exit 1
+              ;;
+          esac
+
+          echo "PI_PROVIDER=$PROVIDER" >> "$GITHUB_ENV"
+
+      - name: 執行任務
+        if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data != 'StatusUpdate') || inputs.event_data != 'StatusUpdate' }}
+        id: pi_task
+        shell: bash
+        env:
+          PI_CODING_AGENT_DIR: ".pi"
         run: |
           RAW_ISSUE_NUMBER='${{ env.ISSUE_NUMBER }}'
           RAW_COMMENT_ID='${{ env.COMMENT_ID }}'
@@ -143,20 +192,50 @@ jobs:
 
           USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
 
+          # 固定 Pi Coding Agent 版本，避免 @latest 造成不可重現結果或遭上游 breaking change 影響。
+          # 可透過 repo variable PI_CODING_AGENT_VERSION 覆寫。
+          PI_CODING_AGENT_VERSION='${{ vars.PI_CODING_AGENT_VERSION }}'
+          : "${PI_CODING_AGENT_VERSION:=0.70.6}"
+
+          # 若選取 pioneer，則需要先安裝 pi-pioneer-provider 延伸模組
+          if [[ "${PI_PROVIDER}" == "pioneer" ]]; then
+            echo "Installing pi-pioneer-provider extension..."
+            npx -y "@mariozechner/pi-coding-agent@${PI_CODING_AGENT_VERSION}" install npm:pi-pioneer-provider
+          fi
+
+          # Pi 會透過 PI_CODING_AGENT_DIR=.pi 讀取 template 內的 settings.json 與 models.json
+          # 以 error loglevel 執行，避免 npm warning 汙染 error.log
           set +e
-          npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.27' }} \
+          npm_config_loglevel=error npx -y "@mariozechner/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
-            --yolo --stream off --output-format json \
-            > "artifacts/${COMMENT_ID}/output.jsonl" \
-            2> "artifacts/${COMMENT_ID}/error.log"
+            --mode json \
+            2> "artifacts/${COMMENT_ID}/error.log" \
+            | jq -c 'select(.type | test("^(session|agent_|turn_|message_start|message_end|tool_|error|result|compaction_|auto_retry_)"))' \
+            > "artifacts/${COMMENT_ID}/output.jsonl"
           EXIT_CODE=$?
           set -e
 
-          if [[ -s "artifacts/${COMMENT_ID}/result.md" ]]; then
-            echo "Warning: Copilot CLI exited with code ${EXIT_CODE}, but result.md was generated."
-            exit 0
-          else
-            exit ${EXIT_CODE}
+          # Pi 即使遇到 provider 錯誤也會以 exit 0 結束，需要從 output.jsonl 偵測 errorMessage
+          # 偵測到時補寫進 error.log 並讓本步驟失敗，後續的失敗處理才會觸發
+          HAS_ERROR=0
+          if jq -e '.. | objects | select((.errorMessage // "") != "")' \
+              "artifacts/${COMMENT_ID}/output.jsonl" > /dev/null; then
+            jq -r '.. | objects | .errorMessage? // empty' \
+              "artifacts/${COMMENT_ID}/output.jsonl" \
+              | awk 'NF && !seen[$0]++' \
+              >> "artifacts/${COMMENT_ID}/error.log"
+            echo "Pi reported errorMessage." >&2
+            HAS_ERROR=1
+          fi
+
+          if [[ $EXIT_CODE -ne 0 || $HAS_ERROR -ne 0 ]]; then
+            if [[ -s "artifacts/${COMMENT_ID}/result.md" ]]; then
+              echo "Warning: Pi exited with code ${EXIT_CODE} or reported errorMessage, but result.md was generated."
+              exit 0
+            else
+              echo "Pi execution failed; marking step as failed." >&2
+              exit 1
+            fi
           fi
 
       - name: 推送結果
@@ -174,12 +253,11 @@ jobs:
           git push origin "issue-${{ env.ISSUE_NUMBER }}" --force
 
       - name: 任務失敗處理
-        if: failure() && steps.copilot_task.conclusion == 'failure'
+        if: failure() && steps.pi_task.conclusion == 'failure'
         uses: duotify/GitHubClawToolkit/actions/error-handler-action@v1
         with:
           output_file: artifacts/${{ env.COMMENT_ID }}/error.log
           result_file: artifacts/${{ env.COMMENT_ID }}/result.md
-
 
       - name: 執行結果回報
         if: always()
