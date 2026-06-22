@@ -1,0 +1,4 @@
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+suppress_unstable_features_warning = true
+model = "gpt-5.4-mini"
