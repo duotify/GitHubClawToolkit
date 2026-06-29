@@ -103,6 +103,7 @@ jobs:
           SECRET_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SECRET_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           SECRET_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SECRET_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           SECRET_PIONEER_API_KEY: ${{ secrets.PIONEER_API_KEY }}
           SECRET_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
@@ -129,6 +130,9 @@ jobs:
               ;;
             google)
               echo "GEMINI_API_KEY=${SECRET_GEMINI_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            mistral)
+              echo "MISTRAL_API_KEY=${SECRET_MISTRAL_API_KEY}" >> "$GITHUB_ENV"
               ;;
             pioneer)
               echo "PIONEER_API_KEY=${SECRET_PIONEER_API_KEY}" >> "$GITHUB_ENV"
