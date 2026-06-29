@@ -1,10 +1,10 @@
 {
   "name": "Pi BYOK",
-  "tagline": "使用 Pi Coding Agent — 支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer、OpenRouter",
-  "description": "以 Pi Coding Agent 作為小龍蝦執行引擎的範本。每隻小龍蝦可獨立選擇 provider 與 model，API key 按 provider 分開管理。支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer、OpenRouter 等 provider，不需要額外的轉接層。",
+  "tagline": "使用 Pi Coding Agent — 支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer、OpenRouter、Mistral",
+  "description": "以 Pi Coding Agent 作為小龍蝦執行引擎的範本。每隻小龍蝦可獨立選擇 provider 與 model，API key 按 provider 分開管理。支援 Cloudflare、Anthropic、OpenAI、Gemini、Groq、Pioneer、OpenRouter、Mistral 等 provider，不需要額外的轉接層。",
   "category": "ai",
-  "tags": ["pi", "byok", "cloudflare", "anthropic", "openai", "gemini", "groq", "pioneer", "openrouter"],
-  "version": "1.3.0",
+  "tags": ["pi", "byok", "cloudflare", "anthropic", "openai", "gemini", "groq", "pioneer", "openrouter", "mistral"],
+  "version": "1.4.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
   "byokFlow": true,
@@ -97,6 +97,18 @@
         { "value": "gemini-3-pro-preview", "label": "Gemini 3 Pro (Preview)" },
         { "value": "gemini-3.1-flash-lite-preview", "label": "Gemini 3.1 Flash Lite (Preview)" },
         { "value": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro (Preview)" }
+      ]
+    },
+    {
+      "id": "mistral",
+      "label": "Mistral AI",
+      "description": "使用 Mistral AI 官方模型。",
+      "secretName": "MISTRAL_API_KEY",
+      "defaultModel": "mistral-large-latest",
+      "models": [
+        { "value": "mistral-large-latest", "label": "Mistral Large Latest" },
+        { "value": "mistral-medium-3.5", "label": "Mistral Medium 3.5" },
+        { "value": "devstral-medium-latest", "label": "Devstral Medium Latest" }
       ]
     },
     {
