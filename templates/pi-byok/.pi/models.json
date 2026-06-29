@@ -124,11 +124,6 @@
           "maxTokens": 16384
         }
       ]
-      // 注意：這裡列出的 models 是給 UI 選擇清單用的。
-      // 你在 TG 手動輸入 model id（例如 mistral-small-latest 或其他未來模型）時，
-      // 會直接寫進 .pi/settings.json 的 defaultModel，
-      // 只要 provider 定義有 baseUrl + apiKey，agent 就會用你輸入的 model id 去呼叫 Mistral API。
-      // 不會被上面的 models 陣列限制。
     }
   }
 }
