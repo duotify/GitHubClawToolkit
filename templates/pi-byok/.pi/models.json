@@ -91,6 +91,44 @@
           "maxTokens": 8192
         }
       ]
+    },
+    "mistral": {
+      "baseUrl": "https://api.mistral.ai/v1",
+      "api": "openai-completions",
+      "apiKey": "MISTRAL_API_KEY",
+      "headers": {},
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false
+      },
+      "models": [
+        {
+          "id": "mistral-large-latest",
+          "name": "Mistral Large Latest",
+          "input": ["text"],
+          "contextWindow": 262144,
+          "maxTokens": 16384
+        },
+        {
+          "id": "mistral-medium-3.5",
+          "name": "Mistral Medium 3.5",
+          "input": ["text"],
+          "contextWindow": 262144,
+          "maxTokens": 16384
+        },
+        {
+          "id": "devstral-medium-latest",
+          "name": "Devstral Medium Latest",
+          "input": ["text"],
+          "contextWindow": 262144,
+          "maxTokens": 16384
+        }
+      ]
+      // 注意：這裡列出的 models 是給 UI 選擇清單用的。
+      // 你在 TG 手動輸入 model id（例如 mistral-small-latest 或其他未來模型）時，
+      // 會直接寫進 .pi/settings.json 的 defaultModel，
+      // 只要 provider 定義有 baseUrl + apiKey，agent 就會用你輸入的 model id 去呼叫 Mistral API。
+      // 不會被上面的 models 陣列限制。
     }
   }
 }
