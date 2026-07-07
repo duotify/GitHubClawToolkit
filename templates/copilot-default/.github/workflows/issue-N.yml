@@ -54,6 +54,7 @@ concurrency:
 permissions:
   contents: write
   issues: write
+  copilot-requests: write
 
 # 把不同 trigger 的 payload 統一整理成共用環境變數，後續 step 只要讀 env 即可。
 env:
@@ -63,8 +64,6 @@ env:
   COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
   # 這次觸發來源的使用者留言 id，用來讀取對應的 user.md。
   USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
-  # 給 Copilot CLI 做 GitHub 驗證用的 token；實際權限要看 repo secrets 如何配置。
-  COPILOT_GITHUB_TOKEN: "${{ secrets.COPILOT_GITHUB_TOKEN }}"
 
 jobs:
   # 單一主 job：在 GitHub-hosted runner 上完成驗證、執行 agent、寫回結果。
@@ -99,7 +98,7 @@ jobs:
         id: copilot_task
         shell: bash
         env:
-          COPILOT_GITHUB_TOKEN: ${{ env.COPILOT_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           COPILOT_HOME: ".copilot"
         run: |
           RAW_ISSUE_NUMBER='${{ env.ISSUE_NUMBER }}'
@@ -144,7 +143,7 @@ jobs:
           USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
 
           set +e
-          npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.27' }} \
+          npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.68' }} \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
             --yolo --stream off --output-format json \
             > "artifacts/${COMMENT_ID}/output.jsonl" \

@@ -54,6 +54,7 @@ concurrency:
 permissions:
   contents: write
   issues: write
+  copilot-requests: write
 
 # 把不同 trigger 的 payload 統一整理成共用環境變數，後續 step 只要讀 env 即可。
 env:
@@ -62,8 +63,6 @@ env:
   # 若有提供現成的 comment id，就直接更新那則留言。
   COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.comment_id || inputs.comment_id }}"
   USER_COMMENT_ID: "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.user_comment_id || inputs.user_comment_id }}"
-  # 給 Copilot CLI 做 GitHub 驗證用的 token；實際權限要看 repo secrets 如何配置。
-  COPILOT_GITHUB_TOKEN: "${{ secrets.COPILOT_GITHUB_TOKEN }}"
   # 給 Copilot CLI 做 FELO API 認證用的金鑰；實際權限要看 repo secrets 如何配置。
   FELO_API_KEY: "${{ secrets.FELO_API_KEY }}"
 
@@ -91,7 +90,7 @@ jobs:
 
       # 安裝 GitHub Copilot CLI
       - name: Install GitHub Copilot CLI
-        run: npm install -g @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.27' }}
+        run: npm install -g @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.68' }}
 
       - name: 狀態更新處理
         if: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.event_data == 'StatusUpdate') || inputs.event_data == 'StatusUpdate' }}
@@ -111,7 +110,7 @@ jobs:
         id: copilot_task
         shell: bash
         env:
-          COPILOT_GITHUB_TOKEN: ${{ env.COPILOT_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           COPILOT_HOME: ".copilot"
           FELO_API_KEY: ${{ env.FELO_API_KEY }}
         run: |
@@ -157,7 +156,7 @@ jobs:
           USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
 
           set +e
-          npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.27' }} \
+          npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.68' }} \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
             --yolo --stream off --continue --output-format json \
             > "artifacts/${COMMENT_ID}/output.jsonl" \
