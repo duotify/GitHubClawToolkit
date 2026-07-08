@@ -181,7 +181,6 @@ jobs:
           USER_PROMPT_CONTENT="$(cat "$USER_PROMPT_FILE")"
 
           set +e
-          set +e
           npx -y @github/copilot@${{ vars.COPILOT_CLI_VERSION || '1.0.68' }} \
             -p "請將最終結果寫入 artifacts/${COMMENT_ID}/result.md 。我的提示詞為: ${USER_PROMPT_CONTENT}" \
             --yolo --stream off --output-format json \
