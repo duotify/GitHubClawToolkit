@@ -9,7 +9,7 @@
 - Google Cloud 帳號（已啟用免費試用 $300 額度）
 - 本機已安裝 Antigravity CLI（`agy`）
 
-### 步驟（Linux / macOS / WSL）
+### 步驟（Linux / WSL）
 
 1. 在終端機執行：
 
@@ -31,6 +31,17 @@ agy --print "hello"
 
 ```bash
 cat ~/.gemini/antigravity-cli/antigravity-oauth-token
+```
+
+### 步驟（macOS）
+
+macOS 會將 token 儲存在 Keychain。完成登入後，在終端機執行以下指令，輸出的 JSON 即為 `AGY_OAUTH_TOKEN`：
+
+```bash
+security find-generic-password -s gemini -a antigravity -w \
+  | sed 's/^go-keyring-base64://' \
+  | base64 -d \
+  | python3 -m json.tool
 ```
 
 ### 步驟（Windows）
