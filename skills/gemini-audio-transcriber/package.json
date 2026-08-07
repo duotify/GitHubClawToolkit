@@ -8,7 +8,7 @@
     "transcribe": "node scripts/transcribe.js"
   },
   "dependencies": {
-    "@google/genai": ">=1.33.0"
+    "@google/genai": ">=2.0.0"
   },
   "engines": {
     "node": ">=20.0.0"

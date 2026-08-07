@@ -4,7 +4,7 @@
   "description": "Gemini Deep Researcher 使用 Gemini Deep Research Agent 針對任意主題產出結構完整、附引用來源的繁體中文研究報告。報告自動分為摘要、背景、主要發現、分析、結論與參考來源，適合決策分析、簡報準備與主題學習。",
   "category": "content",
   "tags": ["gemini", "research", "deep-analysis", "report", "citations"],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
   "requireEnv": ["GEMINI_API_KEY"]

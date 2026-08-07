@@ -45,6 +45,46 @@ async function getTopic() {
   process.exit(1);
 }
 
+/**
+ * Extract final text from an Interactions API response.
+ * Prefers SDK sugar (output_text), then steps schema (SDK >= 2.0.0),
+ * then legacy outputs array.
+ */
+function extractInteractionText(status) {
+  if (typeof status.output_text === "string" && status.output_text) {
+    return status.output_text;
+  }
+
+  // New steps schema (outputs → steps)
+  if (Array.isArray(status.steps) && status.steps.length > 0) {
+    const texts = [];
+    for (const step of status.steps) {
+      if (step?.type === "model_output" && Array.isArray(step.content)) {
+        for (const part of step.content) {
+          if (part?.type === "text" && part.text) texts.push(part.text);
+        }
+      } else if (step?.type === "text" && step.text) {
+        texts.push(step.text);
+      }
+    }
+    if (texts.length > 0) return texts.join("");
+  }
+
+  // Legacy outputs schema (pre-2.0.0 SDK)
+  const outputs = status.outputs ?? status.output;
+  if (Array.isArray(outputs) && outputs.length > 0) {
+    const last = outputs[outputs.length - 1];
+    if (last?.text) return last.text;
+    const texts = [];
+    for (const part of outputs) {
+      if (part?.type === "text" && part.text) texts.push(part.text);
+    }
+    if (texts.length > 0) return texts.join("");
+  }
+
+  return "";
+}
+
 async function main() {
   const topic = await getTopic();
   const prompt = buildPrompt(topic);
@@ -91,18 +131,9 @@ async function main() {
     const status = await client.interactions.get(interactionId);
 
     if (status.status === "completed") {
-      const outputs = status.outputs ?? status.output;
-      if (outputs && outputs.length > 0) {
-        const last = outputs[outputs.length - 1];
-        if (last.text) {
-          process.stdout.write(last.text);
-        } else {
-          for (const part of outputs) {
-            if (part.type === "text" && part.text) {
-              process.stdout.write(part.text);
-            }
-          }
-        }
+      const text = extractInteractionText(status);
+      if (text) {
+        process.stdout.write(text);
         process.stdout.write("\n");
       }
       console.error("研究完成！");

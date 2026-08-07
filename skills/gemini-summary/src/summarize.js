@@ -141,9 +141,12 @@ function isRemoteUrl(value) {
 }
 
 async function streamInteraction(stream) {
+  // @google/genai >= 2.0.0 uses Interactions API steps schema:
+  // content.delta → step.delta (legacy schema sunset June 2026)
   for await (const chunk of stream) {
     if (
-      chunk.event_type === "content.delta" &&
+      (chunk.event_type === "step.delta" ||
+        chunk.event_type === "content.delta") &&
       chunk.delta?.type === "text" &&
       chunk.delta.text
     ) {
