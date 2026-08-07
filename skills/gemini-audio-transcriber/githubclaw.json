@@ -4,7 +4,7 @@
   "description": "Gemini Audio Transcriber 使用 Gemini Interactions API 的原生音訊理解能力，將音訊檔案轉錄為繁體中文逐字稿。支援多種格式（MP3、WAV、OGG、FLAC 等），可自動標記多位說話者，輸出可搭配 meeting-note-formatter 整理為結構化會議紀錄。",
   "category": "content",
   "tags": ["gemini", "audio", "transcription", "speech-to-text", "meeting-notes"],
-  "version": "1.0.1",
+  "version": "1.0.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
   "requireEnv": ["GEMINI_API_KEY"]

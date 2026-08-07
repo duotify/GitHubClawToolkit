@@ -4,7 +4,7 @@
   "description": "Gemini Summary 可自動偵測輸入來源類型（網頁、PDF、影片、音訊），透過 Gemini Interactions API 產生結構化的繁體中文摘要。支援 YouTube 影片、本機檔案與遠端 URL，一鍵取得精簡重點整理，適合快速掌握文章、報告與影音內容。",
   "category": "content",
   "tags": ["gemini", "summary", "pdf", "video", "content-analysis"],
-  "version": "1.0.1",
+  "version": "1.0.0",
   "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
   "homepage": "https://learn.duotify.com/courses/githubclaw",
   "requireEnv": ["GEMINI_API_KEY"]
