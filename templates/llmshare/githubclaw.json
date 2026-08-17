@@ -1,0 +1,30 @@
+{
+  "name": "LLMShare",
+  "tagline": "使用 LLMShare（LiteLLM）與 Pi Coding Agent 執行小龍蝦",
+  "description": "以 Pi Coding Agent 作為小龍蝦執行引擎，透過 LLMShare 的 OpenAI 相容 LiteLLM 端點呼叫團購模型。建立小龍蝦時只需提供 LLMSHARE_API_KEY，預設使用 deepseek-v4-flash:0731。",
+  "category": "ai",
+  "tags": ["pi", "llmshare", "litellm", "openai-compatible", "deepseek"],
+  "version": "1.0.0",
+  "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
+  "homepage": "https://learn.duotify.com/courses/githubclaw",
+  "byokFlow": true,
+  "byokConfig": {
+    "path": ".pi/settings.json",
+    "providerField": "defaultProvider",
+    "modelField": "defaultModel",
+    "merge": true
+  },
+  "providers": [
+    {
+      "id": "llmshare",
+      "label": "LLMShare",
+      "description": "透過 LiteLLM OpenAI 相容 API 使用 LLMShare 團購模型，需設定 LLMSHARE_API_KEY。",
+      "isDefault": true,
+      "secretName": "LLMSHARE_API_KEY",
+      "defaultModel": "deepseek-v4-flash:0731",
+      "models": [
+        { "value": "deepseek-v4-flash:0731", "label": "DeepSeek V4 Flash 0731" }
+      ]
+    }
+  ]
+}

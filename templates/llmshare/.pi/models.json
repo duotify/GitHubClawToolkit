@@ -1,0 +1,23 @@
+{
+  "providers": {
+    "llmshare": {
+      "baseUrl": "https://llm-share.duotify.com/v1",
+      "api": "openai-completions",
+      "apiKey": "LLMSHARE_API_KEY",
+      "authHeader": true,
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false
+      },
+      "models": [
+        {
+          "id": "deepseek-v4-flash:0731",
+          "name": "DeepSeek V4 Flash 0731",
+          "input": ["text"],
+          "contextWindow": 999424,
+          "maxTokens": 131072
+        }
+      ]
+    }
+  }
+}
