@@ -1,6 +1,6 @@
 {
   "providers": {
-    "llmshare": {
+    "LLMShare": {
       "baseUrl": "https://llm-share.duotify.com/v1",
       "api": "openai-completions",
       "apiKey": "LLMSHARE_API_KEY",
