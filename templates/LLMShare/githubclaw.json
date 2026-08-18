@@ -17,7 +17,7 @@
   },
   "providers": [
     {
-      "id": "LLMShare",
+      "id": "llmshare",
       "label": "LLMShare",
       "description": "透過 LiteLLM OpenAI 相容 API 使用 LLMShare 團購模型，安裝時設定 LLMSHARE_API_KEY。",
       "isDefault": true,
