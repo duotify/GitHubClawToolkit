@@ -1,5 +1,5 @@
 {
   "defaultProvider": "meta-ai",
-  "defaultModel": "muse-spark-1.2",
+  "defaultModel": "muse-spark-1.3",
   "quietStartup": true
 }
