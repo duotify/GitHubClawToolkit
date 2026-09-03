@@ -5,6 +5,11 @@
       "api": "openai-responses",
       "apiKey": "META_API_KEY",
       "authHeader": true,
+      "compat": {
+        "supportsDeveloperRole": true,
+        "supportsReasoningEffort": true,
+        "supportsUsageInStreaming": true
+      },
       "models": [
         {
           "id": "muse-spark-1.2",
@@ -27,11 +32,6 @@
             "high": "high",
             "xhigh": "xhigh",
             "max": null
-          },
-          "compat": {
-            "supportsDeveloperRole": true,
-            "supportsReasoningEffort": true,
-            "supportsUsageInStreaming": true
           }
         },
         {
@@ -55,11 +55,6 @@
             "high": "high",
             "xhigh": "xhigh",
             "max": null
-          },
-          "compat": {
-            "supportsDeveloperRole": true,
-            "supportsReasoningEffort": true,
-            "supportsUsageInStreaming": true
           }
         }
       ]
