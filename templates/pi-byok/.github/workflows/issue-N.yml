@@ -106,6 +106,7 @@ jobs:
           SECRET_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           SECRET_PIONEER_API_KEY: ${{ secrets.PIONEER_API_KEY }}
           SECRET_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SECRET_OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           # 讀取 provider（Pi 原生 provider id）
           PROVIDER="cloudflare-workers-ai"
@@ -139,6 +140,9 @@ jobs:
               ;;
             openrouter)
               echo "OPENROUTER_API_KEY=${SECRET_OPENROUTER_API_KEY}" >> "$GITHUB_ENV"
+              ;;
+            opencode)
+              echo "OPENCODE_API_KEY=${SECRET_OPENCODE_API_KEY}" >> "$GITHUB_ENV"
               ;;
             *)
               echo "Unknown provider: $PROVIDER"
