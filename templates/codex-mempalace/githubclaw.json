@@ -1,0 +1,11 @@
+{
+  "name": "Codex Default",
+  "tagline": "預設 Codex Agent 範本，提供標準任務執行框架",
+  "description": "Codex Default 是最基礎的 Codex Agent 範本，內建完整的任務執行規範，包含指令解析、執行策略、驗證流程與產出物路徑管理。適合作為起點快速建立基於 OpenAI Codex 的自動化工作流程。",
+  "category": "framework",
+  "tags": ["codex", "template", "agent", "workflow"],
+  "version": "1.0.0",
+  "support_url": "https://github.com/duotify/GitHubClawToolkit/issues",
+  "homepage": "https://learn.duotify.com/courses/githubclaw",
+  "requireEnv": []
+}
